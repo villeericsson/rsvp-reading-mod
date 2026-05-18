@@ -26,6 +26,7 @@ The app uses **Optimal Recognition Point (ORP)** highlighting - the red letter i
 - **Chapter Menu**: Dropdown menu to jump to specific chapters.
 - **Font Size Control**: Increase/decrease font size.
 - **Autosave**: Progress, settings and selected files are automatically saved, automatically restored on reload.
+- **Dynamic font scaling**: Long words are scaled to fit the screen width.
 
 ## BELOW IS ORIGINAL VERSIONREADME:
 

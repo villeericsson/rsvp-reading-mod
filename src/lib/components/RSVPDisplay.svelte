@@ -30,9 +30,26 @@
 
   // FIX: Detect Hebrew, Arabic, and other RTL scripts
   $: isRtl = /[\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC]/.test(currentWord);
+
+  // Dynamic scaling logic to fit long words on screen
+  let displayW = 0;
+  let chWidth100 = 0;
+  $: chWidth = chWidth100 / 100;
+
+  const PADDING = 16; // 16px padding to screen edge
+
+  $: prefixLen = wordPrefix ? Array.from(wordPrefix).length : 0;
+  $: suffixLen = wordSuffix ? Array.from(wordSuffix).length : 0;
+  $: maxActiveChars = Math.max(prefixLen, suffixLen) + 0.5; // +0.5 accounts for ORP character center offset
+
+  $: unscaledHalfWidth = maxActiveChars * chWidth;
+  $: maxAllowedHalfWidth = (displayW / 2) - PADDING;
+  $: scaleFactor = (unscaledHalfWidth > 0 && maxAllowedHalfWidth > 0)
+    ? Math.min(1, maxAllowedHalfWidth / unscaledHalfWidth)
+    : 1;
 </script>
 
-<div class="rsvp-display">
+<div class="rsvp-display" bind:clientWidth={displayW}>
   <div class="focus-marker">
     <div class="marker-line top"></div>
     <div class="marker-line bottom"></div>
@@ -46,38 +63,47 @@
       ? fadeDuration
       : 0}ms ease-in-out; --text-size-multiplier: {textSize / 100};"
   >
-    {#if currentWord}
-      <!-- ORP letter always centered at 50% -->
-      <span class="orp">{focusChar}</span>
+    <!-- Hidden span to measure 100 characters unscaled -->
+    <span 
+      aria-hidden="true"
+      style="position: absolute; visibility: hidden; pointer-events: none; white-space: pre;"
+      bind:offsetWidth={chWidth100}
+    >{"0".repeat(100)}</span>
 
-      <!-- Content before ORP: prefix of current word + words before -->
-      <span class="before-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
-        {#if isRtl}
-          {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
-            &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
-          {/if}
-        {:else}
-          {#if useMultiMode && wordsBefore.length > 0}
-            <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
-          {/if}{wordPrefix}
-        {/if}
-      </span>
+    <div class="scale-wrapper" style="transform: scale({scaleFactor});">
+      {#if currentWord}
+        <!-- ORP letter always centered at 50% -->
+        <span class="orp">{focusChar}</span>
 
-      <!-- Content after ORP: suffix of current word + words after -->
-      <span class="after-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
-        {#if isRtl}
-          {#if useMultiMode && wordsBefore.length > 0}
-            <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
-          {/if}{wordPrefix}
-        {:else}
-          {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
-            &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
+        <!-- Content before ORP: prefix of current word + words before -->
+        <span class="before-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
+          {#if isRtl}
+            {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
+              &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
+            {/if}
+          {:else}
+            {#if useMultiMode && wordsBefore.length > 0}
+              <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
+            {/if}{wordPrefix}
           {/if}
-        {/if}
-      </span>
-    {:else}
-      <span class="placeholder">Ready</span>
-    {/if}
+        </span>
+
+        <!-- Content after ORP: suffix of current word + words after -->
+        <span class="after-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
+          {#if isRtl}
+            {#if useMultiMode && wordsBefore.length > 0}
+              <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
+            {/if}{wordPrefix}
+          {:else}
+            {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
+              &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
+            {/if}
+          {/if}
+        </span>
+      {:else}
+        <span class="placeholder">Ready</span>
+      {/if}
+    </div>
   </div>
 </div>
 
@@ -139,6 +165,16 @@
     /* Container needs width for absolute children to position against */
     width: 100%;
     height: 1.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .scale-wrapper {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    transform-origin: center;
     display: flex;
     align-items: center;
     justify-content: center;
