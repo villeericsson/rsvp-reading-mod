@@ -191,6 +191,16 @@
     }
   }
 
+  function togglePlayPause() {
+    if (isPlaying) {
+      pause();
+    } else if (isPaused) {
+      resume();
+    } else {
+      start();
+    }
+  }
+
   function stop() {
     isPlaying = false;
     isPaused = false;
@@ -316,9 +326,7 @@
     switch (e.code) {
       case "Space":
         e.preventDefault();
-        if (isPlaying) pause();
-        else if (isPaused) resume();
-        else start();
+        togglePlayPause();
         break;
       case "Escape":
         if (showChapterMenu) {
@@ -569,7 +577,13 @@
   {/if}
 
   <!-- Main Display -->
-  <div class="display-area">
+  <div
+    class="display-area"
+    on:click={togglePlayPause}
+    role="button"
+    tabindex="-1"
+    aria-label="Toggle play pause"
+  >
     <RSVPDisplay
       word={currentWord?.text || ""}
       inQuotes={currentWord?.inQuotes || false}
@@ -758,6 +772,10 @@
     justify-content: center;
     min-height: 0;
     overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
   }
 
   .bottom-bar {
