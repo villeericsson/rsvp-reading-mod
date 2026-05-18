@@ -161,6 +161,10 @@
   function start() {
     if (words.length === 0) parseText();
     if (words.length === 0) return;
+    if (currentWordIndex >= words.length) {
+      currentWordIndex = 0;
+      progress = 0;
+    }
     isPlaying = true;
     isPaused = false;
     showSettings = false;
@@ -190,19 +194,12 @@
   function stop() {
     isPlaying = false;
     isPaused = false;
-    currentWordIndex = 0;
-    progress = 0;
     wordOpacity = 1;
     if (intervalId) {
       clearTimeout(intervalId);
       intervalId = null;
     }
     forceSaveProgress();
-  }
-
-  function restart() {
-    stop();
-    start();
   }
 
   function handleTextApply(event) {
@@ -333,13 +330,7 @@
           showSettings = false;
           showTextInput = false;
         } else if (isPlaying || isPaused) {
-          // Exit focus mode but preserve position
-          isPlaying = false;
-          isPaused = false;
-          if (intervalId) {
-            clearTimeout(intervalId);
-            intervalId = null;
-          }
+          stop();
         }
         break;
       case "KeyG":
@@ -616,7 +607,6 @@
         on:pause={pause}
         on:resume={resume}
         on:stop={stop}
-        on:restart={restart}
       />
     </div>
 

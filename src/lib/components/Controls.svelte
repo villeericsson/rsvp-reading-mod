@@ -82,19 +82,7 @@
     {/if}
   </button>
 
-  {#if !minimal}
-    <button
-      class="control-btn restart"
-      on:click={() => dispatch('restart')}
-      disabled={!canPlay}
-      title="Restart"
-    >
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-      </svg>
-      <span>Restart</span>
-    </button>
-  {/if}
+
 </div>
 
 <style>
@@ -162,13 +150,11 @@
     background: #ffcc44;
   }
 
-  .control-btn.stop,
-  .control-btn.restart {
+  .control-btn.stop {
     background: #333;
   }
 
-  .control-btn.stop:hover:not(:disabled),
-  .control-btn.restart:hover:not(:disabled) {
+  .control-btn.stop:hover:not(:disabled) {
     background: #444;
   }
 
