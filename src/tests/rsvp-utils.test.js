@@ -69,6 +69,67 @@ describe('parseText', () => {
       { text: 'go!"', inQuotes: true }
     ])
   })
+
+  it('should keep outer double-quote highlight across nested single quotes', () => {
+    const result = parseText(`He said "She told me 'hello' yesterday" then left.`)
+    expect(result).toEqual([
+      { text: 'He', inQuotes: false },
+      { text: 'said', inQuotes: false },
+      { text: '"She', inQuotes: true },
+      { text: 'told', inQuotes: true },
+      { text: 'me', inQuotes: true },
+      { text: "'hello'", inQuotes: true },
+      { text: 'yesterday"', inQuotes: true },
+      { text: 'then', inQuotes: false },
+      { text: 'left.', inQuotes: false }
+    ])
+  })
+
+  it('should keep outer single-quote (smart) highlight across nested double quotes', () => {
+    const result = parseText('‘He said “stop” now’ then bye')
+    expect(result).toEqual([
+      { text: '‘He', inQuotes: true },
+      { text: 'said', inQuotes: true },
+      { text: '“stop”', inQuotes: true },
+      { text: 'now’', inQuotes: true },
+      { text: 'then', inQuotes: false },
+      { text: 'bye', inQuotes: false }
+    ])
+  })
+
+  it('should handle a self-closing single-quoted word', () => {
+    const result = parseText("'Hello,' he said")
+    expect(result).toEqual([
+      { text: "'Hello,'", inQuotes: true },
+      { text: 'he', inQuotes: false },
+      { text: 'said', inQuotes: false }
+    ])
+  })
+
+  it('should not treat trailing possessive apostrophe as opening a quote', () => {
+    const result = parseText("the dogs' bowls are clean")
+    expect(result).toEqual([
+      { text: 'the', inQuotes: false },
+      { text: "dogs'", inQuotes: false },
+      { text: 'bowls', inQuotes: false },
+      { text: 'are', inQuotes: false },
+      { text: 'clean', inQuotes: false }
+    ])
+  })
+
+  it('should reset state cleanly between sequential nested quoted spans', () => {
+    const result = parseText(`"He said 'hi'" and "she said 'bye'" later`)
+    expect(result).toEqual([
+      { text: '"He', inQuotes: true },
+      { text: 'said', inQuotes: true },
+      { text: "'hi'\"", inQuotes: true },
+      { text: 'and', inQuotes: false },
+      { text: '"she', inQuotes: true },
+      { text: 'said', inQuotes: true },
+      { text: "'bye'\"", inQuotes: true },
+      { text: 'later', inQuotes: false }
+    ])
+  })
 })
 
 describe('getORPIndex', () => {

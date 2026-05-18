@@ -17,30 +17,46 @@ export function parseText(text) {
   const words = [];
 
   for (const paragraph of paragraphs) {
-    // Reset quote state at the start of each paragraph to prevent cascading inversions
-    let inQuotes = false;
+    // Reset quote state at the start of each paragraph to prevent cascading inversions.
+    // Track the OUTER quote type so nested quotes of the other type don't toggle state.
+    let outerQuoteType = null; // null | 'double' | 'single'
 
-    // Split paragraph into words
     const rawWords = paragraph.trim().split(/\s+/).filter((w) => w.length > 0);
 
     for (const rawWord of rawWords) {
-      let wordInQuotes = inQuotes;
-      
-      // Apostrophe Safety: Remove single quotes flanked by letters to ignore them
-      const wordWithoutApostrophes = rawWord.replace(/(?<=\p{L})['‘’](?=\p{L})/gu, '');
-      
-      // 1. Smart Quotes are Absolute (Left)
-      // 2. Positional Straight Quotes (Beginning)
-      if (/[“‘]/.test(wordWithoutApostrophes) || /^"/.test(wordWithoutApostrophes)) {
-        inQuotes = true;
-        wordInQuotes = true;
-      }
-      
-      // 1. Smart Quotes are Absolute (Right)
-      // 2. Positional Straight Quotes (End)
-      if (/[”’]/.test(wordWithoutApostrophes) || /"[.,!?;:]*$/.test(wordWithoutApostrophes)) {
-        inQuotes = false;
-        wordInQuotes = true;
+      // Apostrophe Safety: Remove single quotes flanked by letters (don't, it's)
+      const cleaned = rawWord.replace(/(?<=\p{L})['‘’](?=\p{L})/gu, '');
+      let wordInQuotes = outerQuoteType !== null;
+
+      for (let i = 0; i < cleaned.length; i++) {
+        const ch = cleaned[i];
+        let kind = null;
+
+        if (ch === '“') kind = 'dOpen';
+        else if (ch === '”') kind = 'dClose';
+        else if (ch === '‘') kind = 'sOpen';
+        else if (ch === '’') kind = 'sClose';
+        else if (ch === '"') kind = (i === 0) ? 'dOpen' : 'dClose';
+        else if (ch === "'") {
+          // Leading ' opens; trailing ' only closes when already in a single-quote outer
+          // (guards against possessives like dogs')
+          if (i === 0) kind = 'sOpen';
+          else if (outerQuoteType === 'single' && /^['.,!?;:]*$/.test(cleaned.slice(i))) {
+            kind = 'sClose';
+          }
+        }
+        if (!kind) continue;
+
+        if (outerQuoteType === null) {
+          if (kind === 'dOpen')      { outerQuoteType = 'double'; wordInQuotes = true; }
+          else if (kind === 'sOpen') { outerQuoteType = 'single'; wordInQuotes = true; }
+        } else if (outerQuoteType === 'double') {
+          wordInQuotes = true;
+          if (kind === 'dClose') outerQuoteType = null;
+        } else {
+          wordInQuotes = true;
+          if (kind === 'sClose') outerQuoteType = null;
+        }
       }
 
       words.push({ text: rawWord, inQuotes: wordInQuotes });

@@ -5,6 +5,7 @@ This is a custom fork for with modifications of A Svelte-based Rapid Serial Visu
 ## Online version / DEMO
 
 Link for original version: https://rsvp.n0name.eu/
+
 Link for this modified fork: https://rsvp-reading-mod.vercel.app/
 
 <video src="rsvp-clip.mp4" controls width="600"></video>
@@ -28,7 +29,7 @@ The app uses **Optimal Recognition Point (ORP)** highlighting - the red letter i
 - **Autosave**: Progress, settings and selected files are automatically saved, automatically restored on reload.
 - **Dynamic font scaling**: Long words are scaled to fit the screen width.
 
-## BELOW IS ORIGINAL VERSIONREADME:
+## BELOW IS ORIGINAL VERSION'S README:
 
 ## Features
 
