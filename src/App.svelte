@@ -8,12 +8,12 @@
   } from "./lib/rsvp-utils.js";
   import { parseFile } from "./lib/file-parsers.js";
   import {
-    saveSession,
-    loadSession,
-    clearSession,
-    hasSession,
-    getSessionSummary,
+    generateBookId,
+    saveReadingProgress,
+    getReadingProgress,
   } from "./lib/progress-storage.js";
+  import { saveSettings, loadSettings } from "./lib/settings-storage.js";
+  import { saveBookToCache, getLatestBookFromCache } from "./lib/book-cache.js";
   import RSVPDisplay from "./lib/components/RSVPDisplay.svelte";
   import Controls from "./lib/components/Controls.svelte";
   import Settings from "./lib/components/Settings.svelte";
@@ -23,7 +23,8 @@
   import { extractWordFrame } from "./lib/rsvp-utils.js";
 
   // State
-  let frameWordCount = 1;
+  const savedSettings = loadSettings() || {};
+  let frameWordCount = savedSettings.frameWordCount ?? 1;
   let text = `Rapid serial visual presentation (RSVP) is a scientific method for studying the timing of vision. In RSVP, a sequence of stimuli is shown to an observer at one location in their visual field. This technique has been adapted for speed reading applications, where words are displayed one at a time at a fixed point, eliminating the need for eye movements and potentially increasing reading speed significantly.`;
   let words = [];
   let chapters = [];
@@ -38,20 +39,36 @@
   let loadingMessage = "";
   let showJumpTo = false;
   let jumpToValue = "";
-  let savedSessionInfo = null;
-  let showSavedSessionPrompt = false;
+  
+  // Progress tracking
+  let currentBookId = null;
+  let saveProgressTimer = null;
+
+  function debouncedSaveProgress() {
+    if (!currentBookId) return;
+    if (saveProgressTimer) clearTimeout(saveProgressTimer);
+    saveProgressTimer = setTimeout(() => {
+      saveReadingProgress(currentBookId, currentWordIndex);
+    }, 3000);
+  }
+
+  function forceSaveProgress() {
+    if (!currentBookId) return;
+    if (saveProgressTimer) clearTimeout(saveProgressTimer);
+    saveReadingProgress(currentBookId, currentWordIndex);
+  }
 
   // Settings
-  let wordsPerMinute = 300;
-  let fadeEnabled = true;
-  let fadeDuration = 150;
-  let pauseAfterWords = 0;
-  let pauseDuration = 500;
-  let pauseOnPunctuation = true;
-  let punctuationPauseMultiplier = 2;
-  let wordLengthWPMMultiplier = 5;
-  let highlightDialogue = true;
-  let textSize = 100;
+  let wordsPerMinute = savedSettings.wordsPerMinute ?? 300;
+  let fadeEnabled = savedSettings.fadeEnabled ?? true;
+  let fadeDuration = savedSettings.fadeDuration ?? 150;
+  let pauseAfterWords = savedSettings.pauseAfterWords ?? 0;
+  let pauseDuration = savedSettings.pauseDuration ?? 500;
+  let pauseOnPunctuation = savedSettings.pauseOnPunctuation ?? true;
+  let punctuationPauseMultiplier = savedSettings.punctuationPauseMultiplier ?? 2;
+  let wordLengthWPMMultiplier = savedSettings.wordLengthWPMMultiplier ?? 5;
+  let highlightDialogue = savedSettings.highlightDialogue ?? true;
+  let textSize = savedSettings.textSize ?? 100;
 
   // Animation
   let wordOpacity = 1;
@@ -72,6 +89,22 @@
     wordsPerMinute,
   );
   $: isFocusMode = isPlaying || isPaused;
+
+  $: {
+    saveSettings({
+      wordsPerMinute,
+      fadeEnabled,
+      fadeDuration,
+      pauseAfterWords,
+      pauseDuration,
+      pauseOnPunctuation,
+      punctuationPauseMultiplier,
+      wordLengthWPMMultiplier,
+      highlightDialogue,
+      textSize,
+      frameWordCount
+    });
+  }
 
   function parseText() {
     words = parseTextUtil(text);
@@ -115,6 +148,7 @@
 
     progress = ((currentWordIndex + 1) / words.length) * 100;
     currentWordIndex++;
+    debouncedSaveProgress();
     scheduleNextWord();
   }
 
@@ -142,6 +176,7 @@
       clearTimeout(intervalId);
       intervalId = null;
     }
+    forceSaveProgress();
   }
 
   function resume() {
@@ -162,6 +197,7 @@
       clearTimeout(intervalId);
       intervalId = null;
     }
+    forceSaveProgress();
   }
 
   function restart() {
@@ -173,7 +209,19 @@
     text = event.detail.text;
     stop();
     chapters = [];
+    
+    currentBookId = generateBookId(text);
+    
     parseText();
+    
+    saveBookToCache(currentBookId, text, words, chapters);
+    
+    const savedProgress = getReadingProgress(currentBookId);
+    if (savedProgress !== null) {
+      currentWordIndex = Math.min(words.length, savedProgress);
+      progress = (currentWordIndex / words.length) * 100;
+    }
+    
     showTextInput = false;
   }
 
@@ -198,7 +246,19 @@
         text = parseResult;
         chapters = [];
       }
+      
+      currentBookId = generateBookId(file);
+      
       parseText();
+      
+      saveBookToCache(currentBookId, text, words, chapters);
+
+      const savedProgress = getReadingProgress(currentBookId);
+      if (savedProgress !== null) {
+        currentWordIndex = Math.min(words.length, savedProgress);
+        progress = (currentWordIndex / words.length) * 100;
+      }
+      
       showTextInput = false;
       loadingMessage = "";
     } catch (error) {
@@ -212,67 +272,8 @@
     }
   }
 
-  function saveCurrentSession() {
-    if (words.length === 0) return false;
-    return saveSession({
-      text,
-      currentWordIndex,
-      totalWords: words.length,
-      chapters,
-      settings: {
-        wordsPerMinute,
-        fadeEnabled,
-        fadeDuration,
-        pauseOnPunctuation,
-        punctuationPauseMultiplier,
-        wordLengthWPMMultiplier,
-        pauseAfterWords,
-        pauseDuration,
-        frameWordCount,
-        highlightDialogue,
-        textSize,
-      },
-    });
-  }
 
-  function loadSavedSession() {
-    const session = loadSession();
-    if (!session) return false;
 
-    text = session.text;
-    parseText();
-    currentWordIndex = session.currentWordIndex;
-    progress = (currentWordIndex / words.length) * 100;
-    chapters = session.chapters || [];
-
-    if (session.settings) {
-      wordsPerMinute = session.settings.wordsPerMinute ?? wordsPerMinute;
-      fadeEnabled = session.settings.fadeEnabled ?? fadeEnabled;
-      fadeDuration = session.settings.fadeDuration ?? fadeDuration;
-      pauseOnPunctuation =
-        session.settings.pauseOnPunctuation ?? pauseOnPunctuation;
-      punctuationPauseMultiplier =
-        session.settings.punctuationPauseMultiplier ??
-        punctuationPauseMultiplier;
-      wordLengthWPMMultiplier =
-        session.settings.wordLengthWPMMultiplier ?? wordLengthWPMMultiplier;
-      pauseAfterWords = session.settings.pauseAfterWords ?? pauseAfterWords;
-      pauseDuration = session.settings.pauseDuration ?? pauseDuration;
-      frameWordCount = session.settings.frameWordCount ?? frameWordCount;
-      highlightDialogue =
-        session.settings.highlightDialogue ?? highlightDialogue;
-      textSize = session.settings.textSize ?? textSize;
-    }
-
-    showSavedSessionPrompt = false;
-    return true;
-  }
-
-  function clearSavedSession() {
-    clearSession();
-    showSavedSessionPrompt = false;
-    savedSessionInfo = null;
-  }
 
   function jumpToWord(value) {
     if (!value || words.length === 0) return;
@@ -297,6 +298,7 @@
     if (targetIndex !== undefined) {
       currentWordIndex = targetIndex;
       progress = (currentWordIndex / words.length) * 100;
+      forceSaveProgress();
     }
 
     showJumpTo = false;
@@ -308,6 +310,7 @@
     const targetIndex = Math.floor((percentage / 100) * words.length);
     currentWordIndex = Math.max(0, Math.min(words.length, targetIndex));
     progress = (currentWordIndex / words.length) * 100;
+    forceSaveProgress();
   }
 
   function handleKeydown(e) {
@@ -329,8 +332,6 @@
         } else if (showSettings || showTextInput) {
           showSettings = false;
           showTextInput = false;
-        } else if (showSavedSessionPrompt) {
-          showSavedSessionPrompt = false;
         } else if (isPlaying || isPaused) {
           // Exit focus mode but preserve position
           isPlaying = false;
@@ -345,12 +346,6 @@
         if (!isPlaying && !showSettings && !showTextInput && !showChapterMenu) {
           e.preventDefault();
           showJumpTo = !showJumpTo;
-        }
-        break;
-      case "KeyS":
-        if (e.ctrlKey || e.metaKey) {
-          e.preventDefault();
-          saveCurrentSession();
         }
         break;
       case "ArrowUp":
@@ -379,22 +374,42 @@
   }
 
   onMount(() => {
-    parseText();
     window.addEventListener("keydown", handleKeydown);
+    window.addEventListener("beforeunload", forceSaveProgress);
 
-    // Check for saved session
-    if (hasSession()) {
-      savedSessionInfo = getSessionSummary();
-      if (savedSessionInfo) {
-        showSavedSessionPrompt = true;
+    getLatestBookFromCache().then(cachedBook => {
+      if (cachedBook) {
+        text = cachedBook.text;
+        words = cachedBook.words;
+        chapters = cachedBook.chapters || [];
+        currentBookId = cachedBook.bookId;
+        
+        const savedProgress = getReadingProgress(currentBookId);
+        if (savedProgress !== null) {
+          currentWordIndex = Math.min(words.length, savedProgress);
+        } else {
+          currentWordIndex = 0;
+        }
+        progress = words.length > 0 ? (currentWordIndex / words.length) * 100 : 0;
+      } else {
+        parseText();
+        // Handle initial default text
+        currentBookId = generateBookId(text);
+        const savedProgress = getReadingProgress(currentBookId);
+        if (savedProgress !== null) {
+          currentWordIndex = Math.min(words.length, savedProgress);
+          progress = (currentWordIndex / words.length) * 100;
+        }
       }
-    }
+    });
   });
 
   onDestroy(() => {
     if (intervalId) clearTimeout(intervalId);
     if (fadeTimeoutId) clearTimeout(fadeTimeoutId);
+    if (saveProgressTimer) clearTimeout(saveProgressTimer);
     window.removeEventListener("keydown", handleKeydown);
+    window.removeEventListener("beforeunload", forceSaveProgress);
   });
 </script>
 
@@ -434,18 +449,6 @@
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"
-            />
-          </svg>
-        </button>
-        <button
-          class="icon-btn"
-          on:click={saveCurrentSession}
-          title="Save progress (Ctrl+S)"
-          disabled={words.length === 0}
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"
             />
           </svg>
         </button>
@@ -529,6 +532,7 @@
           currentWordIndex = e.detail.wordIndex;
           progress = (currentWordIndex / words.length) * 100;
           showChapterMenu = false;
+          forceSaveProgress();
         }}
         on:close={() => (showChapterMenu = false)}
       />
@@ -568,27 +572,6 @@
           <button on:click={() => jumpToWord("25%")}>25%</button>
           <button on:click={() => jumpToWord("50%")}>50%</button>
           <button on:click={() => jumpToWord("75%")}>75%</button>
-        </div>
-      </div>
-    </div>
-  {/if}
-
-  {#if showSavedSessionPrompt && savedSessionInfo}
-    <div class="panel-overlay">
-      <div class="saved-session-panel">
-        <h3>Resume reading?</h3>
-        <p>
-          You have a saved session at word {savedSessionInfo.currentWordIndex} of
-          {savedSessionInfo.totalWords}
-        </p>
-        <p class="saved-time">
-          Saved {new Date(savedSessionInfo.savedAt).toLocaleString()}
-        </p>
-        <div class="session-actions">
-          <button class="secondary" on:click={clearSavedSession}
-            >Start Fresh</button
-          >
-          <button class="primary" on:click={loadSavedSession}>Resume</button>
         </div>
       </div>
     </div>
@@ -644,7 +627,6 @@
         <kbd>↑↓</kbd> Speed
         <kbd>←→</kbd> Skip
         <kbd>G</kbd> Jump
-        <kbd>Ctrl+S</kbd> Save
       </div>
       <div class="touch-controls mobile-only">
         <button
@@ -898,8 +880,7 @@
   }
 
   /* Jump to panel */
-  .jump-to-panel,
-  .saved-session-panel {
+  .jump-to-panel {
     background: #1a1a1a;
     border: 1px solid #333;
     border-radius: 12px;
@@ -908,8 +889,7 @@
     width: 100%;
   }
 
-  .jump-to-panel h3,
-  .saved-session-panel h3 {
+  .jump-to-panel h3 {
     margin: 0 0 0.5rem 0;
     color: #fff;
     font-size: 1.1rem;
@@ -938,15 +918,13 @@
     border-color: #ff4444;
   }
 
-  .jump-actions,
-  .session-actions {
+  .jump-actions {
     display: flex;
     gap: 0.5rem;
     justify-content: flex-end;
   }
 
-  .jump-actions button,
-  .session-actions button {
+  .jump-actions button {
     padding: 0.5rem 1rem;
     border-radius: 6px;
     border: none;
@@ -955,25 +933,21 @@
     transition: all 0.2s;
   }
 
-  .jump-actions button.primary,
-  .session-actions button.primary {
+  .jump-actions button.primary {
     background: #ff4444;
     color: #fff;
   }
 
-  .jump-actions button.primary:hover,
-  .session-actions button.primary:hover {
+  .jump-actions button.primary:hover {
     background: #ff6666;
   }
 
-  .jump-actions button.secondary,
-  .session-actions button.secondary {
+  .jump-actions button.secondary {
     background: #333;
     color: #fff;
   }
 
-  .jump-actions button.secondary:hover,
-  .session-actions button.secondary:hover {
+  .jump-actions button.secondary:hover {
     background: #444;
   }
 
@@ -1002,16 +976,7 @@
     color: #fff;
   }
 
-  .saved-session-panel p {
-    margin: 0.5rem 0;
-    color: #ccc;
-  }
 
-  .saved-session-panel .saved-time {
-    color: #666;
-    font-size: 0.85rem;
-    margin-bottom: 1rem;
-  }
 
   .icon-btn:disabled {
     opacity: 0.3;

@@ -1,10 +1,11 @@
 # RSVP Reader
 
-A Svelte-based Rapid Serial Visual Presentation (RSVP) reader for speed reading with PDF and EPUB support.
+This is a custom fork for with modifications of A Svelte-based Rapid Serial Visual Presentation (RSVP) reader for speed reading with PDF and EPUB support.
 
 ## Online version / DEMO
 
-Link: https://rsvp.n0name.eu/
+Link for original version: https://rsvp.n0name.eu/
+Link for this modified fork: https://rsvp-reading-mod.vercel.app/
 
 <video src="rsvp-clip.mp4" controls width="600"></video>
 
@@ -18,6 +19,15 @@ The app uses **Optimal Recognition Point (ORP)** highlighting - the red letter i
 - 4-5 letter words: 2nd letter
 - 6-9 letter words: 3rd letter
 - 10+ letter words: 4th letter
+
+## Modified Features
+
+- **Quotation Higlighting**: Highlighting of text inside quotation marks to indicate dialogue.
+- **Chapter Menu**: Dropdown menu to jump to specific chapters.
+- **Font Size Control**: Increase/decrease font size.
+- **Autosave**: Progress, settings and selected files are automatically saved, automatically restored on reload.
+
+## BELOW IS ORIGINAL VERSIONREADME:
 
 ## Features
 

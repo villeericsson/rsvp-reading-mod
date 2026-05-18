@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
-  saveSession,
-  loadSession,
-  hasSession,
-  clearSession,
-  getSessionSummary,
+  generateBookId,
+  saveReadingProgress,
+  getReadingProgress,
   percentageToWordIndex,
   wordIndexToPercentage
 } from '../lib/progress-storage.js'
@@ -30,137 +28,43 @@ describe('progress-storage', () => {
     vi.clearAllMocks()
   })
 
-  describe('saveSession', () => {
-    it('should save session data to localStorage', () => {
-      const session = {
-        text: 'Hello world test',
-        currentWordIndex: 5,
-        totalWords: 100,
-        settings: {
-          wordsPerMinute: 300,
-          fadeEnabled: true
-        }
-      }
+  describe('generateBookId', () => {
+    it('should generate hash for a File object', () => {
+      const file = new File([''], 'test.epub')
+      const id = generateBookId(file)
+      expect(id).toMatch(/^file_test\.epub_\d+$/)
+    })
 
-      const result = saveSession(session)
+    it('should generate hash for a string', () => {
+      const id = generateBookId('Hello world test text')
+      expect(id).toMatch(/^text_21_\d+$/)
+    })
+  })
 
-      expect(result).toBe(true)
+  describe('saveReadingProgress & getReadingProgress', () => {
+    it('should save and get progress from localStorage', () => {
+      const bookId = 'file_test.epub_123'
+      
+      saveReadingProgress(bookId, 42)
+      
       expect(localStorageMock.setItem).toHaveBeenCalled()
-
-      const savedData = JSON.parse(localStorageMock.setItem.mock.calls[0][1])
-      expect(savedData.text).toBe('Hello world test')
-      expect(savedData.currentWordIndex).toBe(5)
-      expect(savedData.totalWords).toBe(100)
-      expect(savedData.settings.wordsPerMinute).toBe(300)
-      expect(savedData.savedAt).toBeDefined()
+      
+      // Simulate retrieving
+      localStorageMock.getItem.mockReturnValueOnce(JSON.stringify({ [bookId]: 42 }))
+      
+      const progress = getReadingProgress(bookId)
+      expect(progress).toBe(42)
     })
 
-    it('should include timestamp in saved data', () => {
-      const before = Date.now()
-
-      saveSession({
-        text: 'Test',
-        currentWordIndex: 0,
-        totalWords: 1,
-        settings: {}
-      })
-
-      const after = Date.now()
-      const savedData = JSON.parse(localStorageMock.setItem.mock.calls[0][1])
-
-      expect(savedData.savedAt).toBeGreaterThanOrEqual(before)
-      expect(savedData.savedAt).toBeLessThanOrEqual(after)
+    it('should return null when bookId is not found', () => {
+      localStorageMock.getItem.mockReturnValueOnce(JSON.stringify({ 'other': 10 }))
+      const progress = getReadingProgress('unknown')
+      expect(progress).toBeNull()
     })
-  })
-
-  describe('loadSession', () => {
-    it('should return null when no session exists', () => {
-      const result = loadSession()
-      expect(result).toBeNull()
-    })
-
-    it('should load and parse session data', () => {
-      const sessionData = {
-        text: 'Test text',
-        currentWordIndex: 10,
-        totalWords: 50,
-        settings: { wordsPerMinute: 400 },
-        savedAt: Date.now()
-      }
-      localStorageMock.getItem.mockReturnValueOnce(JSON.stringify(sessionData))
-
-      const result = loadSession()
-
-      expect(result).toEqual(sessionData)
-    })
-
-    it('should return null for invalid JSON', () => {
-      localStorageMock.getItem.mockReturnValueOnce('invalid json{')
-
-      const result = loadSession()
-
-      expect(result).toBeNull()
-    })
-  })
-
-  describe('hasSession', () => {
-    it('should return false when no session exists', () => {
-      expect(hasSession()).toBe(false)
-    })
-
-    it('should return true when session exists', () => {
-      localStorageMock.getItem.mockReturnValueOnce('{"text":"test"}')
-
-      expect(hasSession()).toBe(true)
-    })
-  })
-
-  describe('clearSession', () => {
-    it('should remove session from localStorage', () => {
-      clearSession()
-
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith('rsvp-reading-session')
-    })
-
-    it('should return true on success', () => {
-      expect(clearSession()).toBe(true)
-    })
-  })
-
-  describe('getSessionSummary', () => {
-    it('should return null when no session exists', () => {
-      expect(getSessionSummary()).toBeNull()
-    })
-
-    it('should return summary without full text', () => {
-      const sessionData = {
-        text: 'This is a very long text...',
-        currentWordIndex: 25,
-        totalWords: 100,
-        savedAt: 1234567890
-      }
-      localStorageMock.getItem.mockReturnValueOnce(JSON.stringify(sessionData))
-
-      const summary = getSessionSummary()
-
-      expect(summary.currentWordIndex).toBe(25)
-      expect(summary.totalWords).toBe(100)
-      expect(summary.savedAt).toBe(1234567890)
-      expect(summary.hasText).toBe(true)
-      expect(summary.text).toBeUndefined()
-    })
-
-    it('should indicate when text is missing', () => {
-      const sessionData = {
-        currentWordIndex: 25,
-        totalWords: 100,
-        savedAt: 1234567890
-      }
-      localStorageMock.getItem.mockReturnValueOnce(JSON.stringify(sessionData))
-
-      const summary = getSessionSummary()
-
-      expect(summary.hasText).toBe(false)
+    
+    it('should ignore invalid saves', () => {
+      saveReadingProgress(null, 42)
+      expect(localStorageMock.setItem).not.toHaveBeenCalled()
     })
   })
 

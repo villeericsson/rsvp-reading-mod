@@ -2,94 +2,69 @@
  * Progress storage utilities for persisting reading sessions
  */
 
-const STORAGE_KEY = 'rsvp-reading-session';
+const STORAGE_KEY = 'rsvp-reading-registry';
 
 /**
- * Save the current reading session to localStorage
- * @param {Object} session - The session data to save
- * @param {string} session.text - The full text being read
- * @param {number} session.currentWordIndex - Current position in the text
- * @param {number} session.totalWords - Total word count
- * @param {Object} session.settings - Reader settings
- * @returns {boolean} Whether the save was successful
+ * Get the reading registry from localStorage
+ * @returns {Object} The registry object mapping bookId to currentWordIndex
  */
-export function saveSession(session) {
-  try {
-    const data = {
-      text: session.text,
-      currentWordIndex: session.currentWordIndex,
-      totalWords: session.totalWords,
-      settings: session.settings,
-      chapters: session.chapters || [],
-      savedAt: Date.now()
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    return true;
-  } catch (error) {
-    console.error('Failed to save session:', error);
-    return false;
-  }
-}
-
-/**
- * Load a saved reading session from localStorage
- * @returns {Object|null} The saved session data or null if none exists
- */
-export function loadSession() {
+function getRegistry() {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return null;
-    return JSON.parse(data);
+    return data ? JSON.parse(data) : {};
   } catch (error) {
-    console.error('Failed to load session:', error);
-    return null;
+    console.error('Failed to parse reading registry:', error);
+    return {};
   }
 }
 
 /**
- * Check if a saved session exists
- * @returns {boolean} Whether a saved session exists
+ * Generate a unique book identifier based on file or text
+ * @param {File|string} fileOrText - The file object or string text
+ * @returns {string} A unique identifier
  */
-export function hasSession() {
-  try {
-    return localStorage.getItem(STORAGE_KEY) !== null;
-  } catch {
-    return false;
+export function generateBookId(fileOrText) {
+  if (fileOrText instanceof File) {
+    // Basic hash using file name and size
+    return `file_${fileOrText.name}_${fileOrText.size}`;
+  } else if (typeof fileOrText === 'string') {
+    // Simple hash for string
+    let hash = 0;
+    for (let i = 0; i < Math.min(fileOrText.length, 1000); i++) {
+        const char = fileOrText.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0;
+    }
+    return `text_${fileOrText.length}_${Math.abs(hash)}`;
   }
+  return `unknown_${Date.now()}`;
 }
 
 /**
- * Clear the saved session from localStorage
- * @returns {boolean} Whether the clear was successful
+ * Save the reading progress for a specific book
+ * @param {string} bookId - The unique book identifier
+ * @param {number} currentWordIndex - The current word index
  */
-export function clearSession() {
+export function saveReadingProgress(bookId, currentWordIndex) {
+  if (!bookId) return;
   try {
-    localStorage.removeItem(STORAGE_KEY);
-    return true;
+    const registry = getRegistry();
+    registry[bookId] = currentWordIndex;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(registry));
   } catch (error) {
-    console.error('Failed to clear session:', error);
-    return false;
+    console.error('Failed to save reading progress:', error);
   }
 }
 
 /**
- * Get a summary of the saved session without loading full text
- * @returns {Object|null} Summary with wordIndex, totalWords, savedAt, or null
+ * Get the saved reading progress for a specific book
+ * @param {string} bookId - The unique book identifier
+ * @returns {number|null} The saved word index, or null if not found
  */
-export function getSessionSummary() {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return null;
-    const parsed = JSON.parse(data);
-    return {
-      currentWordIndex: parsed.currentWordIndex,
-      totalWords: parsed.totalWords,
-      savedAt: parsed.savedAt,
-      hasText: !!parsed.text
-    };
-  } catch {
-    return null;
-  }
+export function getReadingProgress(bookId) {
+  if (!bookId) return null;
+  const registry = getRegistry();
+  return registry[bookId] !== undefined ? registry[bookId] : null;
 }
 
 /**
