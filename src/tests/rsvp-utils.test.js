@@ -11,19 +11,30 @@ import {
 } from '../lib/rsvp-utils.js'
 
 describe('parseText', () => {
-  it('should split text into words', () => {
+  it('should split text into words and track quotes', () => {
     const result = parseText('Hello world test')
-    expect(result).toEqual(['Hello', 'world', 'test'])
+    expect(result).toEqual([
+      { text: 'Hello', inQuotes: false },
+      { text: 'world', inQuotes: false },
+      { text: 'test', inQuotes: false }
+    ])
   })
 
   it('should handle multiple spaces', () => {
     const result = parseText('Hello   world    test')
-    expect(result).toEqual(['Hello', 'world', 'test'])
+    expect(result).toEqual([
+      { text: 'Hello', inQuotes: false },
+      { text: 'world', inQuotes: false },
+      { text: 'test', inQuotes: false }
+    ])
   })
 
   it('should trim leading and trailing whitespace', () => {
     const result = parseText('  Hello world  ')
-    expect(result).toEqual(['Hello', 'world'])
+    expect(result).toEqual([
+      { text: 'Hello', inQuotes: false },
+      { text: 'world', inQuotes: false }
+    ])
   })
 
   it('should return empty array for empty string', () => {
@@ -41,7 +52,22 @@ describe('parseText', () => {
 
   it('should handle newlines and tabs', () => {
     const result = parseText('Hello\nworld\ttest')
-    expect(result).toEqual(['Hello', 'world', 'test'])
+    expect(result).toEqual([
+      { text: 'Hello', inQuotes: false },
+      { text: 'world', inQuotes: false },
+      { text: 'test', inQuotes: false }
+    ])
+  })
+
+  it('should track inQuotes state properly for dialogue', () => {
+    const result = parseText('"Hello," he said. "Don\'t go!"')
+    expect(result).toEqual([
+      { text: '"Hello,"', inQuotes: true },
+      { text: 'he', inQuotes: false },
+      { text: 'said.', inQuotes: false },
+      { text: '"Don\'t', inQuotes: true }, // The ' in Don't is ignored, the double quotes trigger state.
+      { text: 'go!"', inQuotes: true }
+    ])
   })
 })
 

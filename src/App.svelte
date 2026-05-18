@@ -1,40 +1,43 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy } from "svelte";
   import {
     parseText as parseTextUtil,
     getWordDelay as getWordDelayUtil,
     formatTimeRemaining,
-    shouldPauseAtWord
-  } from './lib/rsvp-utils.js';
-  import { parseFile } from './lib/file-parsers.js';
+    shouldPauseAtWord,
+  } from "./lib/rsvp-utils.js";
+  import { parseFile } from "./lib/file-parsers.js";
   import {
     saveSession,
     loadSession,
     clearSession,
     hasSession,
-    getSessionSummary
-  } from './lib/progress-storage.js';
-  import RSVPDisplay from './lib/components/RSVPDisplay.svelte';
-  import Controls from './lib/components/Controls.svelte';
-  import Settings from './lib/components/Settings.svelte';
-  import TextInput from './lib/components/TextInput.svelte';
-  import ProgressBar from './lib/components/ProgressBar.svelte';
-  import { extractWordFrame } from './lib/rsvp-utils.js';
+    getSessionSummary,
+  } from "./lib/progress-storage.js";
+  import RSVPDisplay from "./lib/components/RSVPDisplay.svelte";
+  import Controls from "./lib/components/Controls.svelte";
+  import Settings from "./lib/components/Settings.svelte";
+  import TextInput from "./lib/components/TextInput.svelte";
+  import ProgressBar from "./lib/components/ProgressBar.svelte";
+  import ChapterMenu from "./lib/components/ChapterMenu.svelte";
+  import { extractWordFrame } from "./lib/rsvp-utils.js";
 
   // State
   let frameWordCount = 1;
   let text = `Rapid serial visual presentation (RSVP) is a scientific method for studying the timing of vision. In RSVP, a sequence of stimuli is shown to an observer at one location in their visual field. This technique has been adapted for speed reading applications, where words are displayed one at a time at a fixed point, eliminating the need for eye movements and potentially increasing reading speed significantly.`;
   let words = [];
+  let chapters = [];
   let currentWordIndex = 0;
   let isPlaying = false;
   let isPaused = false;
   let showSettings = false;
   let showTextInput = false;
+  let showChapterMenu = false;
   let progress = 0;
   let isLoadingFile = false;
-  let loadingMessage = '';
+  let loadingMessage = "";
   let showJumpTo = false;
-  let jumpToValue = '';
+  let jumpToValue = "";
   let savedSessionInfo = null;
   let showSavedSessionPrompt = false;
 
@@ -47,6 +50,8 @@
   let pauseOnPunctuation = true;
   let punctuationPauseMultiplier = 2;
   let wordLengthWPMMultiplier = 5;
+  let highlightDialogue = true;
+  let textSize = 100;
 
   // Animation
   let wordOpacity = 1;
@@ -54,9 +59,18 @@
   let fadeTimeoutId = null;
 
   // Derived state
-  $: currentWord = words[currentWordIndex - 1] || (words.length > 0 ? words[0] : '');
-  $: wordFrame = extractWordFrame(words, Math.max(0, currentWordIndex - 1), frameWordCount);
-  $: timeRemaining = formatTimeRemaining(words.length - currentWordIndex, wordsPerMinute);
+  $: currentWord =
+    words[currentWordIndex - 1] ||
+    (words.length > 0 ? words[0] : { text: "", inQuotes: false });
+  $: wordFrame = extractWordFrame(
+    words,
+    Math.max(0, currentWordIndex - 1),
+    frameWordCount,
+  );
+  $: timeRemaining = formatTimeRemaining(
+    words.length - currentWordIndex,
+    wordsPerMinute,
+  );
   $: isFocusMode = isPlaying || isPaused;
 
   function parseText() {
@@ -66,7 +80,13 @@
   }
 
   function getWordDelay(word) {
-    return getWordDelayUtil(word, wordsPerMinute, pauseOnPunctuation, punctuationPauseMultiplier, wordLengthWPMMultiplier);
+    return getWordDelayUtil(
+      word,
+      wordsPerMinute,
+      pauseOnPunctuation,
+      punctuationPauseMultiplier,
+      wordLengthWPMMultiplier,
+    );
   }
 
   function showNextWord() {
@@ -100,8 +120,8 @@
 
   function scheduleNextWord() {
     if (!isPlaying || currentWordIndex >= words.length) return;
-    const word = words[currentWordIndex - 1] || '';
-    intervalId = setTimeout(showNextWord, getWordDelay(word));
+    const word = words[currentWordIndex - 1] || { text: "", inQuotes: false };
+    intervalId = setTimeout(showNextWord, getWordDelay(word.text));
   }
 
   function start() {
@@ -111,6 +131,7 @@
     isPaused = false;
     showSettings = false;
     showTextInput = false;
+    showChapterMenu = false;
     showNextWord();
   }
 
@@ -151,6 +172,7 @@
   function handleTextApply(event) {
     text = event.detail.text;
     stop();
+    chapters = [];
     parseText();
     showTextInput = false;
   }
@@ -163,15 +185,28 @@
     loadingMessage = `Loading ${file.name}...`;
 
     try {
-      text = await parseFile(file);
+      const parseResult = await parseFile(file);
       stop();
+      if (
+        parseResult &&
+        typeof parseResult === "object" &&
+        "text" in parseResult
+      ) {
+        text = parseResult.text;
+        chapters = parseResult.chapters || [];
+      } else {
+        text = parseResult;
+        chapters = [];
+      }
       parseText();
       showTextInput = false;
-      loadingMessage = '';
+      loadingMessage = "";
     } catch (error) {
-      console.error('Error parsing file:', error);
+      console.error("Error parsing file:", error);
       loadingMessage = `Error: ${error.message}`;
-      setTimeout(() => { loadingMessage = ''; }, 3000);
+      setTimeout(() => {
+        loadingMessage = "";
+      }, 3000);
     } finally {
       isLoadingFile = false;
     }
@@ -183,6 +218,7 @@
       text,
       currentWordIndex,
       totalWords: words.length,
+      chapters,
       settings: {
         wordsPerMinute,
         fadeEnabled,
@@ -192,8 +228,10 @@
         wordLengthWPMMultiplier,
         pauseAfterWords,
         pauseDuration,
-        frameWordCount
-      }
+        frameWordCount,
+        highlightDialogue,
+        textSize,
+      },
     });
   }
 
@@ -205,17 +243,25 @@
     parseText();
     currentWordIndex = session.currentWordIndex;
     progress = (currentWordIndex / words.length) * 100;
+    chapters = session.chapters || [];
 
     if (session.settings) {
       wordsPerMinute = session.settings.wordsPerMinute ?? wordsPerMinute;
       fadeEnabled = session.settings.fadeEnabled ?? fadeEnabled;
       fadeDuration = session.settings.fadeDuration ?? fadeDuration;
-      pauseOnPunctuation = session.settings.pauseOnPunctuation ?? pauseOnPunctuation;
-      punctuationPauseMultiplier = session.settings.punctuationPauseMultiplier ?? punctuationPauseMultiplier;
-      wordLengthWPMMultiplier = session.settings.wordLengthWPMMultiplier ?? wordLengthWPMMultiplier;
+      pauseOnPunctuation =
+        session.settings.pauseOnPunctuation ?? pauseOnPunctuation;
+      punctuationPauseMultiplier =
+        session.settings.punctuationPauseMultiplier ??
+        punctuationPauseMultiplier;
+      wordLengthWPMMultiplier =
+        session.settings.wordLengthWPMMultiplier ?? wordLengthWPMMultiplier;
       pauseAfterWords = session.settings.pauseAfterWords ?? pauseAfterWords;
       pauseDuration = session.settings.pauseDuration ?? pauseDuration;
       frameWordCount = session.settings.frameWordCount ?? frameWordCount;
+      highlightDialogue =
+        session.settings.highlightDialogue ?? highlightDialogue;
+      textSize = session.settings.textSize ?? textSize;
     }
 
     showSavedSessionPrompt = false;
@@ -234,10 +280,12 @@
     let targetIndex;
     const trimmed = value.trim();
 
-    if (trimmed.endsWith('%')) {
+    if (trimmed.endsWith("%")) {
       const percent = parseFloat(trimmed.slice(0, -1));
       if (!isNaN(percent)) {
-        targetIndex = Math.floor((Math.max(0, Math.min(100, percent)) / 100) * words.length);
+        targetIndex = Math.floor(
+          (Math.max(0, Math.min(100, percent)) / 100) * words.length,
+        );
       }
     } else {
       const num = parseInt(trimmed, 10);
@@ -252,7 +300,7 @@
     }
 
     showJumpTo = false;
-    jumpToValue = '';
+    jumpToValue = "";
   }
 
   function handleProgressClick(event) {
@@ -263,19 +311,21 @@
   }
 
   function handleKeydown(e) {
-    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+    if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return;
 
     switch (e.code) {
-      case 'Space':
+      case "Space":
         e.preventDefault();
         if (isPlaying) pause();
         else if (isPaused) resume();
         else start();
         break;
-      case 'Escape':
-        if (showJumpTo) {
+      case "Escape":
+        if (showChapterMenu) {
+          showChapterMenu = false;
+        } else if (showJumpTo) {
           showJumpTo = false;
-          jumpToValue = '';
+          jumpToValue = "";
         } else if (showSettings || showTextInput) {
           showSettings = false;
           showTextInput = false;
@@ -291,34 +341,34 @@
           }
         }
         break;
-      case 'KeyG':
-        if (!isPlaying && !showSettings && !showTextInput) {
+      case "KeyG":
+        if (!isPlaying && !showSettings && !showTextInput && !showChapterMenu) {
           e.preventDefault();
           showJumpTo = !showJumpTo;
         }
         break;
-      case 'KeyS':
+      case "KeyS":
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
           saveCurrentSession();
         }
         break;
-      case 'ArrowUp':
+      case "ArrowUp":
         e.preventDefault();
         wordsPerMinute = Math.min(1000, wordsPerMinute + 25);
         break;
-      case 'ArrowDown':
+      case "ArrowDown":
         e.preventDefault();
         wordsPerMinute = Math.max(50, wordsPerMinute - 25);
         break;
-      case 'ArrowLeft':
+      case "ArrowLeft":
         e.preventDefault();
         if (currentWordIndex > 1) {
           currentWordIndex = Math.max(0, currentWordIndex - 2);
           progress = (currentWordIndex / words.length) * 100;
         }
         break;
-      case 'ArrowRight':
+      case "ArrowRight":
         e.preventDefault();
         if (currentWordIndex < words.length) {
           progress = ((currentWordIndex + 1) / words.length) * 100;
@@ -330,7 +380,7 @@
 
   onMount(() => {
     parseText();
-    window.addEventListener('keydown', handleKeydown);
+    window.addEventListener("keydown", handleKeydown);
 
     // Check for saved session
     if (hasSession()) {
@@ -344,7 +394,7 @@
   onDestroy(() => {
     if (intervalId) clearTimeout(intervalId);
     if (fadeTimeoutId) clearTimeout(fadeTimeoutId);
-    window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener("keydown", handleKeydown);
   });
 </script>
 
@@ -356,12 +406,35 @@
       <div class="header-actions">
         <button
           class="icon-btn"
-          on:click={() => { showJumpTo = !showJumpTo; showSettings = false; showTextInput = false; }}
+          on:click={() => {
+            showChapterMenu = !showChapterMenu;
+            showJumpTo = false;
+            showSettings = false;
+            showTextInput = false;
+          }}
+          title="Chapters"
+          class:active={showChapterMenu}
+          disabled={chapters.length === 0}
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 10h3v4H4v-4zm0-6h3v4H4V4zm0 12h3v4H4v-4zm5-12h11v4H9V4zm0 6h11v4H9v-4zm0 6h11v4H9v-4z" />
+          </svg>
+        </button>
+        <button
+          class="icon-btn"
+          on:click={() => {
+            showJumpTo = !showJumpTo;
+            showSettings = false;
+            showTextInput = false;
+            showChapterMenu = false;
+          }}
           title="Jump to word (G)"
           class:active={showJumpTo}
         >
           <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>
+            <path
+              d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"
+            />
           </svg>
         </button>
         <button
@@ -371,27 +444,43 @@
           disabled={words.length === 0}
         >
           <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+            <path
+              d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"
+            />
           </svg>
         </button>
         <button
           class="icon-btn"
-          on:click={() => { showTextInput = !showTextInput; showSettings = false; showJumpTo = false; }}
+          on:click={() => {
+            showTextInput = !showTextInput;
+            showSettings = false;
+            showJumpTo = false;
+            showChapterMenu = false;
+          }}
           title="Load Content"
           class:active={showTextInput}
         >
           <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/>
+            <path
+              d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"
+            />
           </svg>
         </button>
         <button
           class="icon-btn"
-          on:click={() => { showSettings = !showSettings; showTextInput = false; showJumpTo = false; }}
+          on:click={() => {
+            showSettings = !showSettings;
+            showTextInput = false;
+            showJumpTo = false;
+            showChapterMenu = false;
+          }}
           title="Settings"
           class:active={showSettings}
         >
           <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            <path
+              d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+            />
           </svg>
         </button>
       </div>
@@ -407,11 +496,10 @@
         {loadingMessage}
         on:apply={handleTextApply}
         on:fileselect={handleFileSelect}
-        on:close={() => showTextInput = false}
+        on:close={() => (showTextInput = false)}
       />
     </div>
   {/if}
-
 
   {#if showSettings && !isFocusMode}
     <div class="panel-overlay">
@@ -425,16 +513,39 @@
         bind:pauseAfterWords
         bind:pauseDuration
         bind:frameWordCount
-        on:close={() => showSettings = false}
+        bind:highlightDialogue
+        bind:textSize
+        on:close={() => (showSettings = false)}
+      />
+    </div>
+  {/if}
+
+  {#if showChapterMenu && !isFocusMode}
+    <div class="panel-overlay">
+      <ChapterMenu
+        {chapters}
+        {currentWordIndex}
+        on:jump={(e) => {
+          currentWordIndex = e.detail.wordIndex;
+          progress = (currentWordIndex / words.length) * 100;
+          showChapterMenu = false;
+        }}
+        on:close={() => (showChapterMenu = false)}
       />
     </div>
   {/if}
 
   {#if showJumpTo && !isFocusMode}
-    <div class="panel-overlay" on:click|self={() => showJumpTo = false} role="presentation">
+    <div
+      class="panel-overlay"
+      on:click|self={() => (showJumpTo = false)}
+      role="presentation"
+    >
       <div class="jump-to-panel">
         <h3>Jump to position</h3>
-        <p class="jump-hint">Enter word number (e.g., 150) or percentage (e.g., 50%)</p>
+        <p class="jump-hint">
+          Enter word number (e.g., 150) or percentage (e.g., 50%)
+        </p>
         <form on:submit|preventDefault={() => jumpToWord(jumpToValue)}>
           <!-- svelte-ignore a11y_autofocus -->
           <input
@@ -444,15 +555,19 @@
             autofocus
           />
           <div class="jump-actions">
-            <button type="button" class="secondary" on:click={() => showJumpTo = false}>Cancel</button>
+            <button
+              type="button"
+              class="secondary"
+              on:click={() => (showJumpTo = false)}>Cancel</button
+            >
             <button type="submit" class="primary">Go</button>
           </div>
         </form>
         <div class="quick-jumps">
-          <button on:click={() => jumpToWord('0')}>Start</button>
-          <button on:click={() => jumpToWord('25%')}>25%</button>
-          <button on:click={() => jumpToWord('50%')}>50%</button>
-          <button on:click={() => jumpToWord('75%')}>75%</button>
+          <button on:click={() => jumpToWord("0")}>Start</button>
+          <button on:click={() => jumpToWord("25%")}>25%</button>
+          <button on:click={() => jumpToWord("50%")}>50%</button>
+          <button on:click={() => jumpToWord("75%")}>75%</button>
         </div>
       </div>
     </div>
@@ -462,10 +577,17 @@
     <div class="panel-overlay">
       <div class="saved-session-panel">
         <h3>Resume reading?</h3>
-        <p>You have a saved session at word {savedSessionInfo.currentWordIndex} of {savedSessionInfo.totalWords}</p>
-        <p class="saved-time">Saved {new Date(savedSessionInfo.savedAt).toLocaleString()}</p>
+        <p>
+          You have a saved session at word {savedSessionInfo.currentWordIndex} of
+          {savedSessionInfo.totalWords}
+        </p>
+        <p class="saved-time">
+          Saved {new Date(savedSessionInfo.savedAt).toLocaleString()}
+        </p>
         <div class="session-actions">
-          <button class="secondary" on:click={clearSavedSession}>Start Fresh</button>
+          <button class="secondary" on:click={clearSavedSession}
+            >Start Fresh</button
+          >
           <button class="primary" on:click={loadSavedSession}>Resume</button>
         </div>
       </div>
@@ -475,8 +597,11 @@
   <!-- Main Display -->
   <div class="display-area">
     <RSVPDisplay
-      word={currentWord}
-      wordGroup={wordFrame.subset}
+      word={currentWord?.text || ""}
+      inQuotes={currentWord?.inQuotes || false}
+      {highlightDialogue}
+      {textSize}
+      wordGroup={wordFrame.subset.map((w) => w?.text || "")}
       highlightIndex={wordFrame.centerOffset}
       opacity={wordOpacity}
       {fadeDuration}
@@ -522,18 +647,41 @@
         <kbd>Ctrl+S</kbd> Save
       </div>
       <div class="touch-controls mobile-only">
-        <button class="touch-btn" on:click={() => currentWordIndex = Math.max(0, currentWordIndex - 5)} title="Back 5 words">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        <button
+          class="touch-btn"
+          on:click={() =>
+            (currentWordIndex = Math.max(0, currentWordIndex - 5))}
+          title="Back 5 words"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor"
+            ><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg
+          >
         </button>
-        <button class="touch-btn" on:click={() => wordsPerMinute = Math.max(50, wordsPerMinute - 50)} title="Slower">
+        <button
+          class="touch-btn"
+          on:click={() => (wordsPerMinute = Math.max(50, wordsPerMinute - 50))}
+          title="Slower"
+        >
           <span>−WPM</span>
         </button>
         <span class="wpm-display">{wordsPerMinute}</span>
-        <button class="touch-btn" on:click={() => wordsPerMinute = Math.min(1000, wordsPerMinute + 50)} title="Faster">
+        <button
+          class="touch-btn"
+          on:click={() =>
+            (wordsPerMinute = Math.min(1000, wordsPerMinute + 50))}
+          title="Faster"
+        >
           <span>+WPM</span>
         </button>
-        <button class="touch-btn" on:click={() => currentWordIndex = Math.min(words.length, currentWordIndex + 5)} title="Forward 5 words">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+        <button
+          class="touch-btn"
+          on:click={() =>
+            (currentWordIndex = Math.min(words.length, currentWordIndex + 5))}
+          title="Forward 5 words"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor"
+            ><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z" /></svg
+          >
         </button>
       </div>
     {/if}
@@ -558,7 +706,7 @@
     flex-direction: column;
     background-color: #000;
     color: #fff;
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: "Segoe UI", system-ui, sans-serif;
     padding: 2rem;
     box-sizing: border-box;
     transition: padding 0.3s ease;

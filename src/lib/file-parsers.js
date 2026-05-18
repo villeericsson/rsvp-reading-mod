@@ -35,7 +35,7 @@ export async function parsePDF(file) {
 /**
  * Parse an EPUB file and extract its text content
  * @param {File} file - The EPUB file to parse
- * @returns {Promise<string>} The extracted text
+ * @returns {Promise<{text: string, chapters: Array<{title: string, wordIndex: number}>}>} The extracted text and chapters
  */
 export async function parseEPUB(file) {
   const ePub = (await import('epubjs')).default
@@ -46,7 +46,41 @@ export async function parseEPUB(file) {
   await book.ready
   await book.loaded.spine
 
+  // Load navigation (TOC)
+  try {
+    await book.loaded.navigation
+  } catch (e) {
+    console.warn('Could not load navigation:', e)
+  }
+
+  const toc = book.navigation?.toc || []
+
+  // Flatten TOC
+  const flatToc = []
+  const flatten = (items) => {
+    if (!items) return
+    for (const item of items) {
+      flatToc.push(item)
+      if (item.subitems && item.subitems.length) {
+        flatten(item.subitems)
+      }
+    }
+  }
+  flatten(toc)
+
   let fullText = ''
+  const chapters = []
+
+  // Helper to normalize paths for robust comparison
+  const normalizePath = (path) => {
+    if (!path) return ''
+    let clean = path.split('#')[0]
+    clean = clean.replace(/^\.?\//, '')
+    try {
+      clean = decodeURIComponent(clean)
+    } catch (e) {}
+    return clean.toLowerCase()
+  }
 
   // Get spine items - the API varies between versions
   const spineItems = book.spine?.spineItems || book.spine?.items || []
@@ -69,7 +103,35 @@ export async function parseEPUB(file) {
         } else if (contents.documentElement) {
           text = contents.documentElement.textContent || ''
         }
-        fullText += text + ' '
+
+        if (text) {
+          const normalizedSpineHref = normalizePath(href)
+
+          // Match TOC items that correspond to this spine item's href
+          const matchingTocItems = flatToc.filter(t => {
+            const normalizedTocHref = normalizePath(t.href)
+            return normalizedTocHref === normalizedSpineHref ||
+                   normalizedTocHref.endsWith('/' + normalizedSpineHref) ||
+                   normalizedSpineHref.endsWith('/' + normalizedTocHref)
+          })
+
+          if (matchingTocItems.length > 0) {
+            // Count words in fullText up to this point
+            const currentWordCount = fullText.trim() === '' ? 0 : fullText.trim().split(/\s+/).filter(w => w.length > 0).length
+
+            for (const tocItem of matchingTocItems) {
+              const label = tocItem.label?.trim()
+              if (label && !chapters.some(c => c.title === label && c.wordIndex === currentWordCount)) {
+                chapters.push({
+                  title: label,
+                  wordIndex: currentWordCount
+                })
+              }
+            }
+          }
+
+          fullText += text + ' '
+        }
       }
     } catch (e) {
       console.warn('Could not load section:', e)
@@ -77,7 +139,10 @@ export async function parseEPUB(file) {
   }
 
   // Clean up the text
-  return cleanText(fullText)
+  return {
+    text: cleanText(fullText),
+    chapters
+  }
 }
 
 /**
@@ -98,13 +163,14 @@ function cleanText(text) {
 /**
  * Detect file type and parse accordingly
  * @param {File} file - The file to parse
- * @returns {Promise<string>} The extracted text
+ * @returns {Promise<{text: string, chapters: Array<{title: string, wordIndex: number}>}>} The extracted text and chapters
  */
 export async function parseFile(file) {
   const fileName = file.name.toLowerCase()
 
   if (fileName.endsWith('.pdf')) {
-    return parsePDF(file)
+    const text = await parsePDF(file)
+    return { text, chapters: [] }
   } else if (fileName.endsWith('.epub')) {
     return parseEPUB(file)
   } else {

@@ -20,6 +20,7 @@ export function saveSession(session) {
       currentWordIndex: session.currentWordIndex,
       totalWords: session.totalWords,
       settings: session.settings,
+      chapters: session.chapters || [],
       savedAt: Date.now()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));

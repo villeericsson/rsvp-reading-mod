@@ -9,7 +9,45 @@
  */
 export function parseText(text) {
   if (!text || typeof text !== "string") return [];
-  return text.trim().split(/\s+/).filter((w) => w.length > 0);
+  
+  // Split into paragraphs by double newlines (or more) to handle structural breaks
+  // We use \n\s*\n to match two or more newlines potentially separated by whitespace
+  const paragraphs = text.split(/\n\s*\n/);
+  
+  const words = [];
+
+  for (const paragraph of paragraphs) {
+    // Reset quote state at the start of each paragraph to prevent cascading inversions
+    let inQuotes = false;
+
+    // Split paragraph into words
+    const rawWords = paragraph.trim().split(/\s+/).filter((w) => w.length > 0);
+
+    for (const rawWord of rawWords) {
+      let wordInQuotes = inQuotes;
+      
+      // Apostrophe Safety: Remove single quotes flanked by letters to ignore them
+      const wordWithoutApostrophes = rawWord.replace(/(?<=\p{L})['‘’](?=\p{L})/gu, '');
+      
+      // 1. Smart Quotes are Absolute (Left)
+      // 2. Positional Straight Quotes (Beginning)
+      if (/[“‘]/.test(wordWithoutApostrophes) || /^"/.test(wordWithoutApostrophes)) {
+        inQuotes = true;
+        wordInQuotes = true;
+      }
+      
+      // 1. Smart Quotes are Absolute (Right)
+      // 2. Positional Straight Quotes (End)
+      if (/[”’]/.test(wordWithoutApostrophes) || /"[.,!?;:]*$/.test(wordWithoutApostrophes)) {
+        inQuotes = false;
+        wordInQuotes = true;
+      }
+
+      words.push({ text: rawWord, inQuotes: wordInQuotes });
+    }
+  }
+
+  return words;
 }
 
 /**

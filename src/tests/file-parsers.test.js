@@ -99,7 +99,7 @@ describe('parsePDF', () => {
     const result = await parseFile(file)
 
     expect(pdfjsLib.getDocument).toHaveBeenCalled()
-    expect(result).toBe('Hello World')
+    expect(result.text).toBe('Hello World')
   })
 
   it('should handle multi-page PDFs', async () => {
@@ -133,7 +133,7 @@ describe('parsePDF', () => {
     const result = await parseFile(file)
 
     expect(mockPdf.getPage).toHaveBeenCalledTimes(2)
-    expect(result).toBe('Page One Page Two')
+    expect(result.text).toBe('Page One Page Two')
   })
 
   it('should filter out non-text items from PDF', async () => {
@@ -162,7 +162,7 @@ describe('parsePDF', () => {
 
     const result = await parseFile(file)
 
-    expect(result).toBe('Text Content')
+    expect(result.text).toBe('Text Content')
   })
 })
 
@@ -195,7 +195,7 @@ describe('parseEPUB', () => {
     const result = await parseFile(file)
 
     expect(epubjs.default).toHaveBeenCalled()
-    expect(result).toBe('Chapter content here')
+    expect(result.text).toBe('Chapter content here')
   })
 
   it('should handle EPUB with multiple chapters', async () => {
@@ -224,7 +224,7 @@ describe('parseEPUB', () => {
 
     const result = await parseFile(file)
 
-    expect(result).toBe('Chapter One Chapter Two')
+    expect(result.text).toBe('Chapter One Chapter Two')
   })
 
   it('should handle failed section loads gracefully', async () => {
@@ -254,7 +254,46 @@ describe('parseEPUB', () => {
     // Should not throw, should continue with other sections
     const result = await parseFile(file)
 
-    expect(result).toBe('Working chapter')
+    expect(result.text).toBe('Working chapter')
+  })
+
+  it('should extract chapters from TOC correctly', async () => {
+    const epubjs = await import('epubjs')
+
+    const mockSection1 = { href: 'chapter1.xhtml' }
+    const mockSection2 = { href: 'chapter2.xhtml' }
+
+    const mockBook = {
+      ready: Promise.resolve(),
+      loaded: { spine: Promise.resolve(), navigation: Promise.resolve() },
+      spine: {
+        items: [mockSection1, mockSection2],
+        spineItems: [mockSection1, mockSection2]
+      },
+      navigation: {
+        toc: [
+          { label: 'Introduction', href: 'chapter1.xhtml' },
+          { label: 'Chapter Two', href: 'chapter2.xhtml' }
+        ]
+      },
+      load: vi.fn().mockImplementation((href) => {
+        if (href === 'chapter1.xhtml') return Promise.resolve('<html><body>Introduction text here.</body></html>')
+        if (href === 'chapter2.xhtml') return Promise.resolve('<html><body>Chapter two content. Let us read!</body></html>')
+        return Promise.resolve('')
+      })
+    }
+
+    epubjs.default.mockReturnValue(mockBook)
+
+    const file = createMockFile('fake epub content', 'chapters.epub', 'application/epub+zip')
+
+    const result = await parseFile(file)
+
+    expect(result.chapters).toBeDefined()
+    expect(result.chapters.length).toBe(2)
+
+    expect(result.chapters[0]).toEqual({ title: 'Introduction', wordIndex: 0 })
+    expect(result.chapters[1]).toEqual({ title: 'Chapter Two', wordIndex: 3 })
   })
 })
 
@@ -290,8 +329,8 @@ describe('text cleaning', () => {
     const result = await parseFile(file)
 
     // Multiple spaces should be collapsed
-    expect(result).not.toContain('   ')
-    expect(result).toBe('Hello World')
+    expect(result.text).not.toContain('   ')
+    expect(result.text).toBe('Hello World')
   })
 
   it('should clean repeated punctuation', async () => {
@@ -319,6 +358,6 @@ describe('text cleaning', () => {
 
     const result = await parseFile(file)
 
-    expect(result).toBe('What? Really!')
+    expect(result.text).toBe('What? Really!')
   })
 })

@@ -10,6 +10,8 @@
   export let pauseDuration = 500;
   export let frameWordCount = 1;
   export let wordLengthWPMMultiplier = 5;
+  export let highlightDialogue = true;
+  export let textSize = 100;
 
   const dispatch = createEventDispatcher();
 
@@ -19,6 +21,7 @@
 
   // Quick WPM presets
   const wpmPresets = [200, 300, 400, 500];
+  const textSizePresets = [25, 50, 75, 100, 150];
 </script>
 
 <div class="settings-panel">
@@ -86,11 +89,44 @@
 
     <div class="control-row">
       <div class="control-header">
+        <span>Text size</span>
+        <span class="control-value">{textSize}%</span>
+      </div>
+      <input type="range" min="25" max="200" step="5" bind:value={textSize} class="slider">
+      <div class="wpm-presets text-size-presets">
+        {#each textSizePresets as preset}
+          <button
+            class="preset-btn text-preset-btn"
+            class:active={textSize === preset}
+            on:click={() => textSize = preset}
+          >
+            {preset}%
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    <div class="control-row">
+      <div class="control-header">
         <span>Words shown simultaneously</span>
         <span class="control-value">{frameWordCount}</span>
       </div>
       <input type="range" min="1" max="7" step="2" bind:value={frameWordCount} class="slider">
       <p class="hint-text">Odd numbers (1, 3, 5, 7) center the highlight best</p>
+    </div>
+
+    <div class="toggle-row">
+      <span class="toggle-label">Highlight dialogue</span>
+      <button
+        class="toggle"
+        class:active={highlightDialogue}
+        on:click={() => highlightDialogue = !highlightDialogue}
+        role="switch"
+        aria-checked={highlightDialogue}
+        aria-label="Toggle dialogue highlighting"
+      >
+        <span class="toggle-thumb"></span>
+      </button>
     </div>
   </section>
 
@@ -322,6 +358,17 @@
     background: #ff4444;
     border-color: #ff4444;
     color: #fff;
+  }
+
+  .text-size-presets {
+    gap: 0.5rem;
+  }
+
+  .text-preset-btn {
+    min-width: 0;
+    padding: 0.6rem 0.25rem;
+    font-size: 0.9rem;
+    flex: 1 1 0;
   }
 
   /* Toggle switches */
