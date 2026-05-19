@@ -6,6 +6,8 @@
   export let totalWords = 0;
   export let wpm = 300;
   export let timeRemaining = '0:00';
+  export let bookProgress = 0;
+  export let chapterProgress = null;
   export let minimal = false;
   export let clickable = false;
 
@@ -57,7 +59,9 @@
 
   {#if !minimal}
     <div class="stats">
-      <span class="stat">{currentWord} / {totalWords}</span>
+      <span class="stat left-stat">
+        {currentWord} / {totalWords} Book: {bookProgress}%{chapterProgress !== null ? ` Chapter: ${chapterProgress}%` : ''}
+      </span>
       <span class="stat wpm">{wpm} WPM</span>
       <span class="stat">{timeRemaining}</span>
     </div>
@@ -105,9 +109,16 @@
   .stats {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     margin-top: 0.75rem;
-    font-size: 0.85rem;
+    font-size: clamp(0.6rem, 2.5vw, 0.85rem);
     color: #555;
+    gap: 0.5rem;
+  }
+
+  .left-stat {
+    flex: 1;
+    white-space: nowrap;
   }
 
   .stat {
@@ -119,9 +130,8 @@
   }
 
   @media (max-width: 600px) {
-    .stats {
-      font-size: 0.75rem;
-      gap: 0.5rem;
+    .wpm {
+      display: none;
     }
   }
 </style>

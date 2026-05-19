@@ -91,6 +91,19 @@
     wordsPerMinute,
   );
   $: isFocusMode = isPlaying || isPaused;
+  $: bookProgress = words.length > 0 ? Math.round((currentWordIndex / words.length) * 100) : 0;
+  $: chapterProgress = (() => {
+    if (!chapters.length || !words.length) return null;
+    let chIdx = -1;
+    for (let i = 0; i < chapters.length; i++) {
+      if (chapters[i].wordIndex <= currentWordIndex) chIdx = i;
+    }
+    if (chIdx < 0) return null;
+    const chStart = chapters[chIdx].wordIndex;
+    const chEnd = chIdx + 1 < chapters.length ? chapters[chIdx + 1].wordIndex : words.length;
+    if (chEnd <= chStart) return null;
+    return Math.round(((currentWordIndex - chStart) / (chEnd - chStart)) * 100);
+  })();
 
   $: {
     saveSettings({
@@ -614,6 +627,8 @@
       totalWords={words.length}
       wpm={wordsPerMinute}
       {timeRemaining}
+      {bookProgress}
+      {chapterProgress}
       minimal={isFocusMode}
       clickable={!isPlaying}
       on:seek={handleProgressClick}
