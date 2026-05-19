@@ -11,6 +11,8 @@
   export let inQuotes = false;
   export let highlightDialogue = false;
   export let textSize = 100;
+  export let orpOffsetX = 0;
+  export let orpOffsetY = 0;
 
   $: useMultiMode = multiWordEnabled && wordGroup.length > 0;
   $: isHighlighted = inQuotes && highlightDialogue;
@@ -49,7 +51,11 @@
     : 1;
 </script>
 
-<div class="rsvp-display" bind:clientWidth={displayW}>
+<div
+  class="rsvp-display"
+  bind:clientWidth={displayW}
+  style="--orp-offset-x: {orpOffsetX}; --orp-offset-y: {orpOffsetY};"
+>
   <div class="focus-marker">
     <div class="marker-line top"></div>
     <div class="marker-line bottom"></div>
@@ -122,12 +128,13 @@
     justify-content: center;
     flex: 1;
     overflow: hidden;
+    container-type: size;
   }
 
   .focus-marker {
     position: absolute;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(calc(-50% + var(--orp-offset-x, 0) * 0.5cqw));
     height: 100%;
     width: 3px;
     pointer-events: none;
@@ -178,6 +185,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    translate: calc(var(--orp-offset-x, 0) * 0.5cqw) calc(var(--orp-offset-y, 0) * 0.5cqh);
   }
 
   .word-container.multi-mode {

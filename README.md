@@ -28,6 +28,7 @@ The app uses **Optimal Recognition Point (ORP)** highlighting - the red letter i
 - **Font Size Control**: Increase/decrease font size.
 - **Autosave**: Progress, settings and selected files are automatically saved, automatically restored on reload.
 - **Dynamic font scaling**: Long words are scaled to fit the screen width.
+- **ORP Offset**: Change position of red letter to your liking.
 
 ## BELOW IS ORIGINAL VERSION'S README:
 

@@ -69,6 +69,8 @@
   let wordLengthWPMMultiplier = savedSettings.wordLengthWPMMultiplier ?? 5;
   let highlightDialogue = savedSettings.highlightDialogue ?? true;
   let textSize = savedSettings.textSize ?? 100;
+  let orpOffsetX = savedSettings.orpOffsetX ?? 0;
+  let orpOffsetY = savedSettings.orpOffsetY ?? 0;
 
   // Animation
   let wordOpacity = 1;
@@ -102,7 +104,9 @@
       wordLengthWPMMultiplier,
       highlightDialogue,
       textSize,
-      frameWordCount
+      frameWordCount,
+      orpOffsetX,
+      orpOffsetY
     });
   }
 
@@ -517,6 +521,8 @@
         bind:frameWordCount
         bind:highlightDialogue
         bind:textSize
+        bind:orpOffsetX
+        bind:orpOffsetY
         on:close={() => (showSettings = false)}
       />
     </div>
@@ -595,6 +601,8 @@
       {fadeDuration}
       {fadeEnabled}
       multiWordEnabled={frameWordCount > 1}
+      {orpOffsetX}
+      {orpOffsetY}
     />
   </div>
 

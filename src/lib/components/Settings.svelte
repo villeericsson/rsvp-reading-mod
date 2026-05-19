@@ -12,6 +12,8 @@
   export let wordLengthWPMMultiplier = 5;
   export let highlightDialogue = true;
   export let textSize = 100;
+  export let orpOffsetX = 0;
+  export let orpOffsetY = 0;
 
   const dispatch = createEventDispatcher();
 
@@ -113,6 +115,24 @@
       </div>
       <input type="range" min="1" max="7" step="2" bind:value={frameWordCount} class="slider">
       <p class="hint-text">Odd numbers (1, 3, 5, 7) center the highlight best</p>
+    </div>
+
+    <div class="control-row">
+      <div class="control-header">
+        <span>ORP horizontal offset</span>
+        <span class="control-value">{orpOffsetX > 0 ? '+' : ''}{orpOffsetX}%</span>
+      </div>
+      <input type="range" min="-30" max="30" step="1" bind:value={orpOffsetX} class="slider">
+      <p class="hint-text">Negative shifts the focus letter left, positive shifts right</p>
+    </div>
+
+    <div class="control-row">
+      <div class="control-header">
+        <span>ORP vertical offset</span>
+        <span class="control-value">{orpOffsetY > 0 ? '+' : ''}{orpOffsetY}%</span>
+      </div>
+      <input type="range" min="-30" max="30" step="1" bind:value={orpOffsetY} class="slider">
+      <p class="hint-text">Negative shifts the focus letter up, positive shifts down</p>
     </div>
 
     <div class="toggle-row">
