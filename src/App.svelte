@@ -421,9 +421,29 @@
     }
   }
 
+  function handleVisibilityChange() {
+    if (document.visibilityState === "hidden") {
+      if (isPlaying) {
+        pause();
+      } else {
+        forceSaveProgress();
+      }
+    }
+  }
+
+  function handlePageHide() {
+    if (isPlaying) {
+      pause();
+    } else {
+      forceSaveProgress();
+    }
+  }
+
   onMount(() => {
     window.addEventListener("keydown", handleKeydown);
     window.addEventListener("beforeunload", forceSaveProgress);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
 
     getLatestBookFromCache().then(cachedBook => {
       if (cachedBook) {
@@ -460,6 +480,8 @@
     if (saveProgressTimer) clearTimeout(saveProgressTimer);
     window.removeEventListener("keydown", handleKeydown);
     window.removeEventListener("beforeunload", forceSaveProgress);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    window.removeEventListener("pagehide", handlePageHide);
   });
 </script>
 
