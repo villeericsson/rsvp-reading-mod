@@ -10,12 +10,13 @@ const LATEST_BOOK_KEY = 'rsvp-latest-book-id';
  * @param {Array<{text: string, inQuotes: boolean}>} words - Parsed word array
  * @param {Array<{title: string, wordIndex: number}>} chapters - Parsed chapters
  */
-export async function saveBookToCache(bookId, text, words, chapters) {
+export async function saveBookToCache(bookId, text, words, chapters, title = "") {
   const bookData = {
     bookId,
     text,
     words,
     chapters,
+    title,
     lastAccessed: Date.now()
   };
   

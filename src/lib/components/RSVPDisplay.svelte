@@ -162,7 +162,7 @@
   }
 
   .marker-line.top {
-    top: 0;
+    top: 40px;
     background: linear-gradient(to bottom, var(--rsvp-orp-color), transparent);
   }
 
@@ -260,6 +260,10 @@
 
     .marker-line {
       height: 30px;
+    }
+
+    .marker-line.top {
+      top: 25px;
     }
 
     .word-container.multi-mode {

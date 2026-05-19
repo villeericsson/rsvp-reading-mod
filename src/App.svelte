@@ -41,10 +41,25 @@
   let loadingMessage = "";
   let showJumpTo = false;
   let jumpToValue = "";
+  let bookTitle = "Demo Text";
   
   // Progress tracking
   let currentBookId = null;
   let saveProgressTimer = null;
+
+  function cleanTitleFromBookId(bookId) {
+    if (!bookId) return "Demo Text";
+    if (bookId.startsWith("file_")) {
+      const match = bookId.match(/^file_(.+)_\d+$/);
+      if (match && match[1]) {
+        return match[1];
+      }
+      return bookId.substring(5);
+    } else if (bookId.startsWith("text_")) {
+      return "Pasted Text";
+    }
+    return "Demo Text";
+  }
 
   function debouncedSaveProgress() {
     if (!currentBookId) return;
@@ -239,10 +254,11 @@
     chapters = [];
     
     currentBookId = generateBookId(text);
+    bookTitle = "Pasted Text";
     
     parseText();
     
-    saveBookToCache(currentBookId, text, words, chapters);
+    saveBookToCache(currentBookId, text, words, chapters, bookTitle);
     
     const savedProgress = getReadingProgress(currentBookId);
     if (savedProgress !== null) {
@@ -289,8 +305,9 @@
       }
 
       currentBookId = generateBookId(file);
+      bookTitle = file.name;
 
-      saveBookToCache(currentBookId, text, words, chapters);
+      saveBookToCache(currentBookId, text, words, chapters, bookTitle);
 
       const savedProgress = getReadingProgress(currentBookId);
       if (savedProgress !== null) {
@@ -414,6 +431,7 @@
         words = cachedBook.words;
         chapters = cachedBook.chapters || [];
         currentBookId = cachedBook.bookId;
+        bookTitle = cachedBook.title || cleanTitleFromBookId(cachedBook.bookId);
         
         const savedProgress = getReadingProgress(currentBookId);
         if (savedProgress !== null) {
@@ -424,6 +442,7 @@
         progress = words.length > 0 ? (currentWordIndex / words.length) * 100 : 0;
       } else {
         parseText();
+        bookTitle = "Demo Text";
         // Handle initial default text
         currentBookId = generateBookId(text);
         const savedProgress = getReadingProgress(currentBookId);
@@ -448,76 +467,83 @@
   <!-- Header - hidden during focus mode -->
   {#if !isFocusMode}
     <header>
-      <h1>RSVP Reader</h1>
-      <div class="header-actions">
-        <button
-          class="icon-btn"
-          on:click={() => {
-            showChapterMenu = !showChapterMenu;
-            showJumpTo = false;
-            showSettings = false;
-            showTextInput = false;
-          }}
-          title="Chapters"
-          class:active={showChapterMenu}
-          disabled={chapters.length === 0}
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M4 10h3v4H4v-4zm0-6h3v4H4V4zm0 12h3v4H4v-4zm5-12h11v4H9V4zm0 6h11v4H9v-4zm0 6h11v4H9v-4z" />
-          </svg>
-        </button>
-        <button
-          class="icon-btn"
-          on:click={() => {
-            showJumpTo = !showJumpTo;
-            showSettings = false;
-            showTextInput = false;
-            showChapterMenu = false;
-          }}
-          title="Jump to word (G)"
-          class:active={showJumpTo}
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"
-            />
-          </svg>
-        </button>
-        <button
-          class="icon-btn"
-          on:click={() => {
-            showTextInput = !showTextInput;
-            showSettings = false;
-            showJumpTo = false;
-            showChapterMenu = false;
-          }}
-          title="Load Content"
-          class:active={showTextInput}
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"
-            />
-          </svg>
-        </button>
-        <button
-          class="icon-btn"
-          on:click={() => {
-            showSettings = !showSettings;
-            showTextInput = false;
-            showJumpTo = false;
-            showChapterMenu = false;
-          }}
-          title="Settings"
-          class:active={showSettings}
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
-            />
-          </svg>
-        </button>
+      <div class="header-top">
+        <h1>RSVP Reader</h1>
+        <div class="header-actions">
+          <button
+            class="icon-btn"
+            on:click={() => {
+              showChapterMenu = !showChapterMenu;
+              showJumpTo = false;
+              showSettings = false;
+              showTextInput = false;
+            }}
+            title="Chapters"
+            class:active={showChapterMenu}
+            disabled={chapters.length === 0}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M4 10h3v4H4v-4zm0-6h3v4H4V4zm0 12h3v4H4v-4zm5-12h11v4H9V4zm0 6h11v4H9v-4zm0 6h11v4H9v-4z" />
+            </svg>
+          </button>
+          <button
+            class="icon-btn"
+            on:click={() => {
+              showJumpTo = !showJumpTo;
+              showSettings = false;
+              showTextInput = false;
+              showChapterMenu = false;
+            }}
+            title="Jump to word (G)"
+            class:active={showJumpTo}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"
+              />
+            </svg>
+          </button>
+          <button
+            class="icon-btn"
+            on:click={() => {
+              showTextInput = !showTextInput;
+              showSettings = false;
+              showJumpTo = false;
+              showChapterMenu = false;
+            }}
+            title="Load Content"
+            class:active={showTextInput}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"
+              />
+            </svg>
+          </button>
+          <button
+            class="icon-btn"
+            on:click={() => {
+              showSettings = !showSettings;
+              showTextInput = false;
+              showJumpTo = false;
+              showChapterMenu = false;
+            }}
+            title="Settings"
+            class:active={showSettings}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
+      {#if bookTitle}
+        <div class="book-title" title={bookTitle}>
+          {bookTitle}
+        </div>
+      {/if}
     </header>
   {/if}
 
@@ -747,10 +773,17 @@
 
   header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 0.25rem;
     margin-bottom: 1rem;
     flex-shrink: 0;
+  }
+
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
   }
 
   h1 {
@@ -758,6 +791,18 @@
     font-weight: 400;
     color: #555;
     margin: 0;
+  }
+
+  .book-title {
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: #888;
+    margin: 0.15rem 0 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-align: left;
   }
 
   .header-actions {
