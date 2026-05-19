@@ -1,5 +1,6 @@
 <script>
   import { getActualORPIndex } from "../rsvp-utils.js";
+  import { FONTS, DEFAULT_FONT_ID } from "../fonts.js";
 
   export let word = "";
   export let wordGroup = [];
@@ -13,6 +14,13 @@
   export let textSize = 100;
   export let orpOffsetX = 0;
   export let orpOffsetY = 0;
+  export let fontFamily = DEFAULT_FONT_ID;
+  export let isItalic = false;
+  export let isBold = false;
+
+  $: activeFontCss =
+    (FONTS.find((f) => f.id === fontFamily) ?? FONTS[0])?.cssFamily ??
+    "sans-serif";
 
   $: useMultiMode = multiWordEnabled && wordGroup.length > 0;
   $: isHighlighted = inQuotes && highlightDialogue;
@@ -67,7 +75,10 @@
     class:dialogue-highlight={isHighlighted}
     style="opacity: {opacity}; transition: opacity {fadeEnabled
       ? fadeDuration
-      : 0}ms ease-in-out; --text-size-multiplier: {textSize / 100};"
+      : 0}ms ease-in-out; --text-size-multiplier: {textSize /
+      100}; --rsvp-font-family: {activeFontCss}; --rsvp-font-style: {isItalic
+      ? 'italic'
+      : 'normal'}; --rsvp-font-weight: {isBold ? 700 : 400};"
   >
     <!-- Hidden span to measure 100 characters unscaled -->
     <span 
@@ -78,34 +89,36 @@
 
     <div class="scale-wrapper" style="transform: scale({scaleFactor});">
       {#if currentWord}
-        <!-- ORP letter always centered at 50% -->
-        <span class="orp">{focusChar}</span>
-
-        <!-- Content before ORP: prefix of current word + words before -->
-        <span class="before-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
-          {#if isRtl}
-            {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
-              &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
+        <div class="word-wrapper">
+          <!-- Content before ORP: prefix of current word + words before -->
+          <span class="before-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
+            {#if isRtl}
+              {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
+                &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
+              {/if}
+            {:else}
+              {#if useMultiMode && wordsBefore.length > 0}
+                <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
+              {/if}{wordPrefix}
             {/if}
-          {:else}
-            {#if useMultiMode && wordsBefore.length > 0}
-              <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
-            {/if}{wordPrefix}
-          {/if}
-        </span>
+          </span>
 
-        <!-- Content after ORP: suffix of current word + words after -->
-        <span class="after-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
-          {#if isRtl}
-            {#if useMultiMode && wordsBefore.length > 0}
-              <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
-            {/if}{wordPrefix}
-          {:else}
-            {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
-              &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
+          <!-- ORP letter always centered at 50% -->
+          <span class="orp">{focusChar}</span>
+
+          <!-- Content after ORP: suffix of current word + words after -->
+          <span class="after-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
+            {#if isRtl}
+              {#if useMultiMode && wordsBefore.length > 0}
+                <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
+              {/if}{wordPrefix}
+            {:else}
+              {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
+                &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
+              {/if}
             {/if}
-          {/if}
-        </span>
+          </span>
+        </div>
       {:else}
         <span class="placeholder">Ready</span>
       {/if}
@@ -160,10 +173,10 @@
 
   .word-container {
     position: relative;
-    font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono",
-      "Source Code Pro", "Menlo", "Consolas", monospace;
+    font-family: var(--rsvp-font-family, sans-serif);
     font-size: calc(clamp(3rem, 8vw, 6rem) * var(--text-size-multiplier, 1));
-    font-weight: 500;
+    font-weight: var(--rsvp-font-weight, 400);
+    font-style: var(--rsvp-font-style, normal);
     line-height: 1;
     white-space: nowrap;
     text-rendering: geometricPrecision;
@@ -201,30 +214,35 @@
     font-weight: 400;
   }
 
+  .word-wrapper {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+  }
+
   .orp {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
+    grid-column: 2;
+    justify-self: center;
     color: var(--rsvp-orp-color);
-    font-weight: 700;
-    text-shadow: 0 0 30px rgba(255, 68, 68, 0.6);
     z-index: 2;
   }
 
   .before-orp {
-    position: absolute;
-    left: 50%;
-    transform: translateX(calc(-100% - 0.5ch));
+    grid-column: 1;
+    justify-self: end;
     color: var(--rsvp-text-color);
-    /* direction: ltr; -- REMOVED to support dynamic RTL/LTR via inline style */
     text-align: right; /* Keeps text growing towards the center */
+    white-space: nowrap;
   }
 
   .after-orp {
-    position: absolute;
-    left: calc(50% + 0.5ch);
+    grid-column: 3;
+    justify-self: start;
     color: var(--rsvp-text-color);
     text-align: left;
+    white-space: nowrap;
   }
 
   .placeholder {

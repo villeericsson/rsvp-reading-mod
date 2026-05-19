@@ -2,10 +2,12 @@
   import { onMount, onDestroy } from "svelte";
   import {
     parseText as parseTextUtil,
+    parseRichText,
     getWordDelay as getWordDelayUtil,
     formatTimeRemaining,
     shouldPauseAtWord,
   } from "./lib/rsvp-utils.js";
+  import { DEFAULT_FONT_ID } from "./lib/fonts.js";
   import { parseFile } from "./lib/file-parsers.js";
   import {
     generateBookId,
@@ -71,6 +73,7 @@
   let textSize = savedSettings.textSize ?? 100;
   let orpOffsetX = savedSettings.orpOffsetX ?? 0;
   let orpOffsetY = savedSettings.orpOffsetY ?? 0;
+  let fontFamily = savedSettings.fontFamily ?? DEFAULT_FONT_ID;
 
   // Animation
   let wordOpacity = 1;
@@ -119,7 +122,8 @@
       textSize,
       frameWordCount,
       orpOffsetX,
-      orpOffsetY
+      orpOffsetY,
+      fontFamily
     });
   }
 
@@ -262,19 +266,30 @@
       if (
         parseResult &&
         typeof parseResult === "object" &&
-        "text" in parseResult
+        Array.isArray(parseResult.segments)
+      ) {
+        // Rich-format path (EPUB): parse segments into word objects with italic/bold flags
+        words = parseRichText(parseResult.segments);
+        chapters = parseResult.chapters || [];
+        text = words.map((w) => w.text).join(" ");
+        currentWordIndex = 0;
+        progress = 0;
+      } else if (
+        parseResult &&
+        typeof parseResult === "object" &&
+        typeof parseResult.text === "string"
       ) {
         text = parseResult.text;
         chapters = parseResult.chapters || [];
+        parseText();
       } else {
-        text = parseResult;
+        text = "";
         chapters = [];
+        parseText();
       }
-      
+
       currentBookId = generateBookId(file);
-      
-      parseText();
-      
+
       saveBookToCache(currentBookId, text, words, chapters);
 
       const savedProgress = getReadingProgress(currentBookId);
@@ -536,6 +551,7 @@
         bind:textSize
         bind:orpOffsetX
         bind:orpOffsetY
+        bind:fontFamily
         on:close={() => (showSettings = false)}
       />
     </div>
@@ -606,8 +622,11 @@
     <RSVPDisplay
       word={currentWord?.text || ""}
       inQuotes={currentWord?.inQuotes || false}
+      isItalic={currentWord?.isItalic || false}
+      isBold={currentWord?.isBold || false}
       {highlightDialogue}
       {textSize}
+      {fontFamily}
       wordGroup={wordFrame.subset.map((w) => w?.text || "")}
       highlightIndex={wordFrame.centerOffset}
       opacity={wordOpacity}

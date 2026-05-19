@@ -23,8 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
-.tools\
-.agents\
+tools/
+.agents/
 project-overview.md
 notes.md
 sprints.md

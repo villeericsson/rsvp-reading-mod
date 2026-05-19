@@ -33,9 +33,66 @@ export async function parsePDF(file) {
 }
 
 /**
- * Parse an EPUB file and extract its text content
+ * Walk a DOM element and produce flat text segments tagged with italic/bold context.
+ * @param {Element|Document} element
+ * @returns {Array<{text: string, isItalic: boolean, isBold: boolean}>}
+ */
+function extractRichSegments(element) {
+  const segments = []
+  const ITALIC_TAGS = new Set(['em', 'i', 'cite', 'dfn', 'var'])
+  const BOLD_TAGS = new Set(['strong', 'b'])
+
+  function walk(node, italic, bold) {
+    if (!node) return
+    if (node.nodeType === 3 /* TEXT_NODE */) {
+      const t = node.textContent
+      if (t) segments.push({ text: t, isItalic: italic, isBold: bold })
+      return
+    }
+    if (node.nodeType !== 1 /* ELEMENT_NODE */) return
+    const tag = node.tagName?.toLowerCase()
+    let childItalic = italic || ITALIC_TAGS.has(tag)
+    let childBold = bold || BOLD_TAGS.has(tag)
+    const style = node.style
+    if (style) {
+      if (style.fontStyle === 'italic' || style.fontStyle === 'oblique') childItalic = true
+      const fw = style.fontWeight
+      if (fw === 'bold' || fw === 'bolder') childBold = true
+      const fwNum = parseInt(fw, 10)
+      if (!Number.isNaN(fwNum) && fwNum >= 600) childBold = true
+    }
+    for (const child of node.childNodes) walk(child, childItalic, childBold)
+  }
+
+  walk(element, false, false)
+  return segments
+}
+
+/**
+ * Clean segment text without trimming (whitespace boundaries between segments matter).
+ */
+function cleanSegmentText(text) {
+  return text
+    .replace(/\s+/g, ' ')
+    .replace(/([.!?])\1+/g, '$1')
+}
+
+/**
+ * Count words present in an array of rich segments.
+ */
+function countSegmentWords(segments) {
+  let total = 0
+  for (const s of segments) {
+    const parts = s.text.split(/\s+/).filter(w => w.length > 0)
+    total += parts.length
+  }
+  return total
+}
+
+/**
+ * Parse an EPUB file and extract its text content with rich formatting.
  * @param {File} file - The EPUB file to parse
- * @returns {Promise<{text: string, chapters: Array<{title: string, wordIndex: number}>}>} The extracted text and chapters
+ * @returns {Promise<{segments: Array<{text: string, isItalic: boolean, isBold: boolean}>, chapters: Array<{title: string, wordIndex: number}>}>}
  */
 export async function parseEPUB(file) {
   const ePub = (await import('epubjs')).default
@@ -68,7 +125,8 @@ export async function parseEPUB(file) {
   }
   flatten(toc)
 
-  let fullText = ''
+  /** @type {Array<{text: string, isItalic: boolean, isBold: boolean}>} */
+  const allSegments = []
   const chapters = []
 
   // Helper to normalize paths for robust comparison
@@ -93,18 +151,28 @@ export async function parseEPUB(file) {
 
       const contents = await book.load(href)
       if (contents) {
-        let text = ''
+        /** @type {Element|null} */
+        let root = null
         // contents can be a Document, string, or XML document
         if (typeof contents === 'string') {
           const doc = new DOMParser().parseFromString(contents, 'text/html')
-          text = doc.body?.textContent || ''
+          root = doc.body || doc.documentElement
         } else if (contents.body) {
-          text = contents.body.textContent || ''
+          root = contents.body
         } else if (contents.documentElement) {
-          text = contents.documentElement.textContent || ''
+          root = contents.documentElement
         }
 
-        if (text) {
+        if (root) {
+          const rawSegments = extractRichSegments(root)
+          /** @type {Array<{text: string, isItalic: boolean, isBold: boolean}>} */
+          const cleanedSegments = []
+          for (const s of rawSegments) {
+            const t = cleanSegmentText(s.text)
+            if (t.length > 0) cleanedSegments.push({ text: t, isItalic: s.isItalic, isBold: s.isBold })
+          }
+          if (cleanedSegments.length === 0) continue
+
           const normalizedSpineHref = normalizePath(href)
 
           // Match TOC items that correspond to this spine item's href
@@ -116,8 +184,8 @@ export async function parseEPUB(file) {
           })
 
           if (matchingTocItems.length > 0) {
-            // Count words in fullText up to this point
-            const currentWordCount = fullText.trim() === '' ? 0 : fullText.trim().split(/\s+/).filter(w => w.length > 0).length
+            // Count words across allSegments accumulated so far
+            const currentWordCount = countSegmentWords(allSegments)
 
             for (const tocItem of matchingTocItems) {
               const label = tocItem.label?.trim()
@@ -130,7 +198,9 @@ export async function parseEPUB(file) {
             }
           }
 
-          fullText += text + ' '
+          allSegments.push(...cleanedSegments)
+          // Separator between spine items so adjacent words don't fuse
+          allSegments.push({ text: ' ', isItalic: false, isBold: false })
         }
       }
     } catch (e) {
@@ -138,9 +208,8 @@ export async function parseEPUB(file) {
     }
   }
 
-  // Clean up the text
   return {
-    text: cleanText(fullText),
+    segments: allSegments,
     chapters
   }
 }
@@ -161,9 +230,11 @@ function cleanText(text) {
 }
 
 /**
- * Detect file type and parse accordingly
+ * Detect file type and parse accordingly.
+ * EPUB files return rich segments with italic/bold metadata.
+ * PDF files return a plain text string.
  * @param {File} file - The file to parse
- * @returns {Promise<{text: string, chapters: Array<{title: string, wordIndex: number}>}>} The extracted text and chapters
+ * @returns {Promise<{text?: string, segments?: Array<{text: string, isItalic: boolean, isBold: boolean}>, chapters: Array<{title: string, wordIndex: number}>}>}
  */
 export async function parseFile(file) {
   const fileName = file.name.toLowerCase()

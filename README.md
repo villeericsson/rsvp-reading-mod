@@ -30,7 +30,8 @@ The app uses **Optimal Recognition Point (ORP)** highlighting - the red letter i
 - **Dynamic font scaling**: Long words are scaled to fit the screen width.
 - **ORP Offset**: Change position of red letter to your liking.
 - **Book and Chapter progress**: Book and Chapter progress is displayed in the footer.
-
+- **Font Selection**: Select font for RSVP text.
+- **Bold and Italic text support**: Bold and italic text formatting is preserved.
 
 ## BELOW IS ORIGINAL VERSION'S README:
 

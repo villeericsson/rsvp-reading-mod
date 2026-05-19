@@ -13,7 +13,7 @@ import {
 describe('parseText', () => {
   it('should split text into words and track quotes', () => {
     const result = parseText('Hello world test')
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       { text: 'Hello', inQuotes: false },
       { text: 'world', inQuotes: false },
       { text: 'test', inQuotes: false }
@@ -22,7 +22,7 @@ describe('parseText', () => {
 
   it('should handle multiple spaces', () => {
     const result = parseText('Hello   world    test')
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       { text: 'Hello', inQuotes: false },
       { text: 'world', inQuotes: false },
       { text: 'test', inQuotes: false }
@@ -31,7 +31,7 @@ describe('parseText', () => {
 
   it('should trim leading and trailing whitespace', () => {
     const result = parseText('  Hello world  ')
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       { text: 'Hello', inQuotes: false },
       { text: 'world', inQuotes: false }
     ])
@@ -52,7 +52,7 @@ describe('parseText', () => {
 
   it('should handle newlines and tabs', () => {
     const result = parseText('Hello\nworld\ttest')
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       { text: 'Hello', inQuotes: false },
       { text: 'world', inQuotes: false },
       { text: 'test', inQuotes: false }
@@ -61,7 +61,7 @@ describe('parseText', () => {
 
   it('should track inQuotes state properly for dialogue', () => {
     const result = parseText('"Hello," he said. "Don\'t go!"')
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       { text: '"Hello,"', inQuotes: true },
       { text: 'he', inQuotes: false },
       { text: 'said.', inQuotes: false },
@@ -72,7 +72,7 @@ describe('parseText', () => {
 
   it('should keep outer double-quote highlight across nested single quotes', () => {
     const result = parseText(`He said "She told me 'hello' yesterday" then left.`)
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       { text: 'He', inQuotes: false },
       { text: 'said', inQuotes: false },
       { text: '"She', inQuotes: true },
@@ -87,7 +87,7 @@ describe('parseText', () => {
 
   it('should keep outer single-quote (smart) highlight across nested double quotes', () => {
     const result = parseText('‘He said “stop” now’ then bye')
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       { text: '‘He', inQuotes: true },
       { text: 'said', inQuotes: true },
       { text: '“stop”', inQuotes: true },
@@ -99,7 +99,7 @@ describe('parseText', () => {
 
   it('should handle a self-closing single-quoted word', () => {
     const result = parseText("'Hello,' he said")
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       { text: "'Hello,'", inQuotes: true },
       { text: 'he', inQuotes: false },
       { text: 'said', inQuotes: false }
@@ -108,7 +108,7 @@ describe('parseText', () => {
 
   it('should not treat trailing possessive apostrophe as opening a quote', () => {
     const result = parseText("the dogs' bowls are clean")
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       { text: 'the', inQuotes: false },
       { text: "dogs'", inQuotes: false },
       { text: 'bowls', inQuotes: false },
@@ -119,7 +119,7 @@ describe('parseText', () => {
 
   it('should reset state cleanly between sequential nested quoted spans', () => {
     const result = parseText(`"He said 'hi'" and "she said 'bye'" later`)
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       { text: '"He', inQuotes: true },
       { text: 'said', inQuotes: true },
       { text: "'hi'\"", inQuotes: true },

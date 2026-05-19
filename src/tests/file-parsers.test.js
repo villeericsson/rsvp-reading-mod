@@ -195,7 +195,8 @@ describe('parseEPUB', () => {
     const result = await parseFile(file)
 
     expect(epubjs.default).toHaveBeenCalled()
-    expect(result.text).toBe('Chapter content here')
+    const text = (result.segments || []).map(s => s.text).join('').trim().replace(/\s+/g, ' ')
+    expect(text).toBe('Chapter content here')
   })
 
   it('should handle EPUB with multiple chapters', async () => {
@@ -224,7 +225,8 @@ describe('parseEPUB', () => {
 
     const result = await parseFile(file)
 
-    expect(result.text).toBe('Chapter One Chapter Two')
+    const text = (result.segments || []).map(s => s.text).join('').trim().replace(/\s+/g, ' ')
+    expect(text).toBe('Chapter One Chapter Two')
   })
 
   it('should handle failed section loads gracefully', async () => {
@@ -254,7 +256,8 @@ describe('parseEPUB', () => {
     // Should not throw, should continue with other sections
     const result = await parseFile(file)
 
-    expect(result.text).toBe('Working chapter')
+    const text = (result.segments || []).map(s => s.text).join('').trim().replace(/\s+/g, ' ')
+    expect(text).toBe('Working chapter')
   })
 
   it('should extract chapters from TOC correctly', async () => {

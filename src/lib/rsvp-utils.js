@@ -3,9 +3,9 @@
  */
 
 /**
- * Parse text into an array of words
+ * Parse plain text into an array of word objects.
  * @param {string} text - The input text to parse
- * @returns {string[]} Array of words
+ * @returns {Array<{text: string, inQuotes: boolean, isItalic: boolean, isBold: boolean}>}
  */
 export function parseText(text) {
   if (!text || typeof text !== "string") return [];
@@ -59,7 +59,79 @@ export function parseText(text) {
         }
       }
 
-      words.push({ text: rawWord, inQuotes: wordInQuotes });
+      words.push({ text: rawWord, inQuotes: wordInQuotes, isItalic: false, isBold: false });
+    }
+  }
+
+  return words;
+}
+
+/**
+ * Process a single raw word for quote tracking. Mutates the passed quoteState
+ * (an object with an `outerQuoteType` field).
+ * @returns {boolean} whether the word is inside quotes
+ */
+function trackQuotesForWord(rawWord, quoteState) {
+  const cleaned = rawWord.replace(/(?<=\p{L})['‘’](?=\p{L})/gu, '');
+  let wordInQuotes = quoteState.outerQuoteType !== null;
+
+  for (let i = 0; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    let kind = null;
+
+    if (ch === '“') kind = 'dOpen';
+    else if (ch === '”') kind = 'dClose';
+    else if (ch === '‘') kind = 'sOpen';
+    else if (ch === '’') kind = 'sClose';
+    else if (ch === '"') kind = (i === 0) ? 'dOpen' : 'dClose';
+    else if (ch === "'") {
+      if (i === 0) kind = 'sOpen';
+      else if (quoteState.outerQuoteType === 'single' && /^['.,!?;:]*$/.test(cleaned.slice(i))) {
+        kind = 'sClose';
+      }
+    }
+    if (!kind) continue;
+
+    if (quoteState.outerQuoteType === null) {
+      if (kind === 'dOpen')      { quoteState.outerQuoteType = 'double'; wordInQuotes = true; }
+      else if (kind === 'sOpen') { quoteState.outerQuoteType = 'single'; wordInQuotes = true; }
+    } else if (quoteState.outerQuoteType === 'double') {
+      wordInQuotes = true;
+      if (kind === 'dClose') quoteState.outerQuoteType = null;
+    } else {
+      wordInQuotes = true;
+      if (kind === 'sClose') quoteState.outerQuoteType = null;
+    }
+  }
+
+  return wordInQuotes;
+}
+
+/**
+ * Parse rich text segments (with italic/bold metadata) into word objects.
+ * Each segment is split on whitespace; every resulting word inherits its
+ * segment's italic/bold flags. Quote tracking spans the whole stream.
+ *
+ * @param {Array<{text: string, isItalic: boolean, isBold: boolean}>} segments
+ * @returns {Array<{text: string, inQuotes: boolean, isItalic: boolean, isBold: boolean}>}
+ */
+export function parseRichText(segments) {
+  if (!Array.isArray(segments) || segments.length === 0) return [];
+
+  const words = [];
+  const quoteState = { outerQuoteType: null };
+
+  for (const seg of segments) {
+    if (!seg || !seg.text) continue;
+    const parts = seg.text.split(/\s+/).filter(w => w.length > 0);
+    for (const rawWord of parts) {
+      const wordInQuotes = trackQuotesForWord(rawWord, quoteState);
+      words.push({
+        text: rawWord,
+        inQuotes: wordInQuotes,
+        isItalic: !!seg.isItalic,
+        isBold: !!seg.isBold,
+      });
     }
   }
 

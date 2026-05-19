@@ -1,5 +1,6 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { FONTS, DEFAULT_FONT_ID } from '../fonts.js';
 
   export let wordsPerMinute = 300;
   export let fadeEnabled = true;
@@ -14,6 +15,7 @@
   export let textSize = 100;
   export let orpOffsetX = 0;
   export let orpOffsetY = 0;
+  export let fontFamily = DEFAULT_FONT_ID;
 
   const dispatch = createEventDispatcher();
 
@@ -103,6 +105,24 @@
             on:click={() => textSize = preset}
           >
             {preset}%
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    <div class="control-row">
+      <div class="control-header">
+        <span>Display font</span>
+      </div>
+      <div class="font-selector">
+        {#each FONTS as font}
+          <button
+            class="font-btn"
+            class:active={fontFamily === font.id}
+            on:click={() => fontFamily = font.id}
+            style="font-family: {font.cssFamily};"
+          >
+            {font.label}
           </button>
         {/each}
       </div>
@@ -573,5 +593,38 @@
     .toggle.active .toggle-thumb {
       left: 28px;
     }
+  }
+
+  .font-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+  }
+
+  .font-btn {
+    width: 100%;
+    background: #1a1a1a;
+    border: 1px solid #252525;
+    color: #888;
+    padding: 0.875rem 1.25rem;
+    border-radius: 10px;
+    font-size: 1.15rem;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+
+  .font-btn:hover {
+    background: #222;
+    color: #fff;
+    border-color: #333;
+  }
+
+  .font-btn.active {
+    background: #1a0000;
+    border-color: #ff4444;
+    color: #fff;
   }
 </style>

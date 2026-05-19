@@ -60,7 +60,7 @@
   {#if !minimal}
     <div class="stats">
       <span class="stat left-stat">
-        {currentWord} / {totalWords} Book: {bookProgress}%{chapterProgress !== null ? ` Chapter: ${chapterProgress}%` : ''}
+        {currentWord}/{totalWords} Book: {bookProgress}%{chapterProgress !== null ? ` Chapter: ${chapterProgress}%` : ''}
       </span>
       <span class="stat wpm">{wpm} WPM</span>
       <span class="stat">{timeRemaining}</span>
