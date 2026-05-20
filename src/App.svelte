@@ -41,6 +41,7 @@
   let loadingMessage = "";
   let showJumpTo = false;
   let jumpToValue = "";
+  let contextMode = false;
   let bookTitle = "Demo Text";
   
   // Progress tracking
@@ -108,6 +109,27 @@
     words.length - currentWordIndex,
     wordsPerMinute,
   );
+  let chunkStartIndex = 0;
+  const CHUNK_SIZE = 400;
+  const CHUNK_BUFFER = 50;
+
+  $: {
+    if (contextMode && words.length > 0) {
+      const activeIdx = Math.max(0, currentWordIndex - 1);
+      if (
+        activeIdx < chunkStartIndex + CHUNK_BUFFER ||
+        activeIdx > chunkStartIndex + CHUNK_SIZE - CHUNK_BUFFER ||
+        (chunkStartIndex > activeIdx)
+      ) {
+        chunkStartIndex = Math.max(0, Math.min(words.length - CHUNK_SIZE, Math.floor(activeIdx - CHUNK_SIZE / 2)));
+      }
+    } else {
+      chunkStartIndex = 0;
+    }
+  }
+
+  $: contextWords = contextMode ? words.slice(chunkStartIndex, chunkStartIndex + CHUNK_SIZE) : [];
+  $: contextActiveWordIndex = contextMode ? Math.max(0, currentWordIndex - 1) - chunkStartIndex : -1;
   $: isFocusMode = isPlaying || isPaused;
   $: bookProgress = words.length > 0 ? Math.round((currentWordIndex / words.length) * 100) : 0;
   $: chapterProgress = (() => {
@@ -527,6 +549,16 @@
           </button>
           <button
             class="icon-btn"
+            on:click={() => (contextMode = !contextMode)}
+            title="Context Mode"
+            class:active={contextMode}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M4 6h16v2H4zm0 4h16v2H4zm0 4h10v2H4z"/>
+            </svg>
+          </button>
+          <button
+            class="icon-btn"
             on:click={() => {
               showTextInput = !showTextInput;
               showSettings = false;
@@ -683,6 +715,9 @@
       multiWordEnabled={frameWordCount > 1}
       {orpOffsetX}
       {orpOffsetY}
+      {contextMode}
+      contextWords={contextWords}
+      contextActiveWordIndex={contextActiveWordIndex}
     />
   </div>
 

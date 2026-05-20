@@ -1,4 +1,5 @@
 <script>
+  import { afterUpdate, tick } from "svelte";
   import { getActualORPIndex } from "../rsvp-utils.js";
   import { FONTS, DEFAULT_FONT_ID } from "../fonts.js";
 
@@ -17,6 +18,9 @@
   export let fontFamily = DEFAULT_FONT_ID;
   export let isItalic = false;
   export let isBold = false;
+  export let contextMode = false;
+  export let contextWords = [];
+  export let contextActiveWordIndex = -1;
 
   $: activeFontCss =
     (FONTS.find((f) => f.id === fontFamily) ?? FONTS[0])?.cssFamily ??
@@ -57,6 +61,48 @@
   $: scaleFactor = (unscaledHalfWidth > 0 && maxAllowedHalfWidth > 0)
     ? Math.min(1, maxAllowedHalfWidth / unscaledHalfWidth)
     : 1;
+
+  // Context Mode Translation / Focus Locking
+  let ty = 0;
+  let displayEl;
+  let orpEl;
+
+  async function updateTranslation() {
+    if (!contextMode || !displayEl || !orpEl) return;
+
+    await tick();
+
+    const containerRect = displayEl.getBoundingClientRect();
+    const orpRect = orpEl.getBoundingClientRect();
+
+    if (containerRect.height === 0 || orpRect.height === 0) return;
+
+    // Center of the ORP character relative to the container viewport space
+    const currentOrpY = orpRect.top - containerRect.top + orpRect.height / 2;
+
+    // Desired focus position inside the container (including user custom offsets)
+    const focusY = containerRect.height / 2 + (orpOffsetY * 0.5 * containerRect.height / 100);
+
+    const deltaY = focusY - currentOrpY;
+
+    // Use a small threshold to avoid infinite render loops/sub-pixel jitter
+    if (Math.abs(deltaY) > 0.05) {
+      ty = ty + deltaY;
+    }
+  }
+
+  // When contextMode is toggled, reset the translations to let the feedback loop start fresh
+  $: {
+    if (!contextMode) {
+      ty = 0;
+    }
+  }
+
+  afterUpdate(() => {
+    if (contextMode) {
+      updateTranslation();
+    }
+  });
 </script>
 
 <div
@@ -64,66 +110,97 @@
   bind:clientWidth={displayW}
   style="--orp-offset-x: {orpOffsetX}; --orp-offset-y: {orpOffsetY};"
 >
-  <div class="focus-marker">
-    <div class="marker-line top"></div>
-    <div class="marker-line bottom"></div>
-  </div>
-
-  <div
-    class="word-container"
-    class:multi-mode={useMultiMode}
-    class:dialogue-highlight={isHighlighted}
-    style="opacity: {opacity}; transition: opacity {fadeEnabled
-      ? fadeDuration
-      : 0}ms ease-in-out; --text-size-multiplier: {textSize /
-      100}; --rsvp-font-family: {activeFontCss}; --rsvp-font-style: {isItalic
-      ? 'italic'
-      : 'normal'}; --rsvp-font-weight: {isBold ? 700 : 400};"
-  >
-    <!-- Hidden span to measure 100 characters unscaled -->
-    <span 
-      aria-hidden="true"
-      style="position: absolute; visibility: hidden; pointer-events: none; white-space: pre;"
-      bind:offsetWidth={chWidth100}
-    >{"0".repeat(100)}</span>
-
-    <div class="scale-wrapper" style="transform: scale({scaleFactor});">
-      {#if currentWord}
-        <div class="word-wrapper">
-          <!-- Content before ORP: prefix of current word + words before -->
-          <span class="before-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
-            {#if isRtl}
-              {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
-                &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
-              {/if}
+  {#if contextMode}
+    <!-- Context Mode: continuous inline text flow, with focus-locking translation -->
+    <div
+      class="context-display"
+      bind:this={displayEl}
+      style="--text-size-multiplier: {textSize / 100}; --rsvp-font-family: {activeFontCss};"
+    >
+      <div class="context-flow" style="transform: translateY({ty}px);">
+        {#each contextWords as w, i}
+          <span
+            class="ctx-word"
+            class:ctx-dim={i !== contextActiveWordIndex}
+            class:ctx-active-word={i === contextActiveWordIndex}
+            class:ctx-italic={w.isItalic}
+            class:ctx-bold={w.isBold}
+            class:ctx-dialogue={w.inQuotes && highlightDialogue}
+          >
+            {#if i === contextActiveWordIndex}
+              <span class="active-word-wrapper" class:dialogue={w.inQuotes && highlightDialogue}>
+                <span>{wordPrefix}</span><span class="orp" bind:this={orpEl}>{focusChar}</span><span>{wordSuffix}</span>
+              </span>
             {:else}
-              {#if useMultiMode && wordsBefore.length > 0}
-                <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
-              {/if}{wordPrefix}
+              {w.text}
             {/if}
-          </span>
-
-          <!-- ORP letter always centered at 50% -->
-          <span class="orp">{focusChar}</span>
-
-          <!-- Content after ORP: suffix of current word + words after -->
-          <span class="after-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
-            {#if isRtl}
-              {#if useMultiMode && wordsBefore.length > 0}
-                <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
-              {/if}{wordPrefix}
-            {:else}
-              {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
-                &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
-              {/if}
-            {/if}
-          </span>
-        </div>
-      {:else}
-        <span class="placeholder">Ready</span>
-      {/if}
+          </span>{" "}
+        {/each}
+      </div>
     </div>
-  </div>
+  {:else}
+    <!-- Normal Mode -->
+    <div class="focus-marker">
+      <div class="marker-line top"></div>
+      <div class="marker-line bottom"></div>
+    </div>
+
+    <div
+      class="word-container"
+      class:multi-mode={useMultiMode}
+      class:dialogue-highlight={isHighlighted}
+      style="opacity: {opacity}; transition: opacity {fadeEnabled
+        ? fadeDuration
+        : 0}ms ease-in-out; --text-size-multiplier: {textSize /
+        100}; --rsvp-font-family: {activeFontCss}; --rsvp-font-style: {isItalic
+        ? 'italic'
+        : 'normal'}; --rsvp-font-weight: {isBold ? 700 : 400};"
+    >
+      <!-- Hidden span to measure 100 characters unscaled -->
+      <span
+        aria-hidden="true"
+        style="position: absolute; visibility: hidden; pointer-events: none; white-space: pre;"
+        bind:offsetWidth={chWidth100}
+      >{"0".repeat(100)}</span>
+
+      <div class="scale-wrapper" style="transform: scale({scaleFactor});">
+        {#if currentWord}
+          <div class="word-wrapper">
+            <!-- Content before ORP: prefix of current word + words before -->
+            <span class="before-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
+              {#if isRtl}
+                {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
+                  &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
+                {/if}
+              {:else}
+                {#if useMultiMode && wordsBefore.length > 0}
+                  <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
+                {/if}{wordPrefix}
+              {/if}
+            </span>
+
+            <!-- ORP letter always centered at 50% -->
+            <span class="orp">{focusChar}</span>
+
+            <!-- Content after ORP: suffix of current word + words after -->
+            <span class="after-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
+              {#if isRtl}
+                {#if useMultiMode && wordsBefore.length > 0}
+                  <span class="context-words">{wordsBefore.join(" ")}</span>&nbsp;
+                {/if}{wordPrefix}
+              {:else}
+                {wordSuffix}{#if useMultiMode && wordsAfter.length > 0}
+                  &nbsp;<span class="context-words">{wordsAfter.join(" ")}</span>
+                {/if}
+              {/if}
+            </span>
+          </div>
+        {:else}
+          <span class="placeholder">Ready</span>
+        {/if}
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -251,6 +328,72 @@
     font-weight: 300;
     font-family: system-ui, sans-serif;
     line-height: 1;
+  }
+
+  /* Context Mode */
+  .context-display {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background-color: #000;
+    font-family: var(--rsvp-font-family, sans-serif);
+    font-size: calc(clamp(0.9rem, 2.5vw, 1.8rem) * var(--text-size-multiplier, 1));
+    line-height: 1.8;
+  }
+
+  .context-flow {
+    position: absolute;
+    width: 100%;
+    max-width: 800px;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    top: 0;
+    box-sizing: border-box;
+    padding: 0 1.5rem;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
+    text-align: left;
+    color: #444;
+  }
+
+  .ctx-word {
+    display: inline;
+    transition: color 0.15s ease;
+  }
+
+  .ctx-dim {
+    color: #444;
+  }
+
+  .ctx-dialogue {
+    color: var(--rsvp-dialogue-color, #4a90e2);
+    opacity: 0.55;
+  }
+
+  .ctx-active-word {
+    color: #fff;
+  }
+
+  .ctx-italic {
+    font-style: italic;
+  }
+
+  .ctx-bold {
+    font-weight: bold;
+  }
+
+  .active-word-wrapper {
+    color: #fff;
+  }
+
+  .active-word-wrapper.dialogue {
+    color: var(--rsvp-dialogue-color, #4a90e2);
+  }
+
+  .active-word-wrapper .orp {
+    color: var(--rsvp-orp-color, #ff4444);
   }
 
   @media (max-width: 600px) {
