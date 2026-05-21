@@ -51,7 +51,7 @@
   let activeSuffixW = 0;
   let orpW = 0;
 
-  const PADDING = 8; // 8px padding to screen edge
+  const PADDING = 4; // 4px padding to screen edge
 
   $: halfExtent  = Math.max(activePrefixW, activeSuffixW) + orpW / 2;
   $: allowedHalf = displayW / 2 - PADDING;
@@ -309,14 +309,16 @@
   .before-orp {
     grid-column: 1;
     justify-self: end;
+    min-width: 0;
     color: var(--rsvp-text-color);
-    text-align: right; /* Keeps text growing towards the center */
+    text-align: right;
     white-space: nowrap;
   }
 
   .after-orp {
     grid-column: 3;
     justify-self: start;
+    min-width: 0;
     color: var(--rsvp-text-color);
     text-align: left;
     white-space: nowrap;
