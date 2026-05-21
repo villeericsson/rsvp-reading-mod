@@ -33,7 +33,7 @@ The app uses **Optimal Recognition Point (ORP)** highlighting - the red letter i
 - **Font Selection**: Select font for RSVP text.
 - **Bold and Italic text support**: Bold and italic text formatting is preserved.
 - **Book Title**: Book title is displayed in the header.
-- **Context Mode**: Shows a chunk of words around the current word for context if wanted.
+- **Context Mode**: Shows a chunk of words around the current word for context if desired.
 
 ## BELOW IS ORIGINAL VERSION'S README:
 

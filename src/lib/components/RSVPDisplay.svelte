@@ -47,19 +47,16 @@
 
   // Dynamic scaling logic to fit long words on screen
   let displayW = 0;
-  let chWidth100 = 0;
-  $: chWidth = chWidth100 / 100;
+  let activePrefixW = 0;
+  let activeSuffixW = 0;
+  let orpW = 0;
 
-  const PADDING = 16; // 16px padding to screen edge
+  const PADDING = 8; // 8px padding to screen edge
 
-  $: prefixLen = wordPrefix ? Array.from(wordPrefix).length : 0;
-  $: suffixLen = wordSuffix ? Array.from(wordSuffix).length : 0;
-  $: maxActiveChars = Math.max(prefixLen, suffixLen) + 0.5; // +0.5 accounts for ORP character center offset
-
-  $: unscaledHalfWidth = maxActiveChars * chWidth;
-  $: maxAllowedHalfWidth = (displayW / 2) - PADDING;
-  $: scaleFactor = (unscaledHalfWidth > 0 && maxAllowedHalfWidth > 0)
-    ? Math.min(1, maxAllowedHalfWidth / unscaledHalfWidth)
+  $: halfExtent  = Math.max(activePrefixW, activeSuffixW) + orpW / 2;
+  $: allowedHalf = displayW / 2 - PADDING;
+  $: scaleFactor = (halfExtent > 0 && allowedHalf > 0)
+    ? Math.min(1, allowedHalf / halfExtent)
     : 1;
 
   // Context Mode Translation / Focus Locking
@@ -156,12 +153,15 @@
         ? 'italic'
         : 'normal'}; --rsvp-font-weight: {isBold ? 700 : 400};"
     >
-      <!-- Hidden span to measure 100 characters unscaled -->
-      <span
+      <!-- Hidden element to measure unscaled active word parts (supports all proportional and monospace fonts) -->
+      <div
         aria-hidden="true"
-        style="position: absolute; visibility: hidden; pointer-events: none; white-space: pre;"
-        bind:offsetWidth={chWidth100}
-      >{"0".repeat(100)}</span>
+        style="position: absolute; visibility: hidden; pointer-events: none; white-space: nowrap; font-family: var(--rsvp-font-family, sans-serif); font-size: calc(clamp(3rem, 8vw, 6rem) * var(--text-size-multiplier, 1)); font-weight: var(--rsvp-font-weight, 400); font-style: var(--rsvp-font-style, normal);"
+      >
+        <span style="display: inline-block;" bind:offsetWidth={activePrefixW}>{wordPrefix}</span>
+        <span style="display: inline-block;" bind:offsetWidth={orpW}>{focusChar}</span>
+        <span style="display: inline-block;" bind:offsetWidth={activeSuffixW}>{wordSuffix}</span>
+      </div>
 
       <div class="scale-wrapper" style="transform: scale({scaleFactor});">
         {#if currentWord}
