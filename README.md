@@ -35,8 +35,10 @@ The app uses **Optimal Recognition Point (ORP)** highlighting - the red letter i
 - **Book Title**: Book title is displayed in the header.
 - **Context Mode**: Shows a chunk of words around the current word for context if desired.
 - **Compound Word Pauses**: Pause for words containing hyphens or dashes.
-- **Number & Digit Pauses**: Pause for numbers.
+- **Number Pauses**: Pause for numbers.
+- **Paragraph End Pauses**: Pause at the end of paragraphs (with configurable style and timing).
 - **Max-Wins Pause Stacking**: Employs a deterministic stacking strategy where only the strongest applicable pause multiplier is applied to a word.
+- **Post-Pause Speed Smoothing**: Gradually ramps the RSVP speed back up to normal *after* a prolonged pause.
 
 
 ## BELOW IS ORIGINAL VERSION'S README:

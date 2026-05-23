@@ -41,6 +41,11 @@ function extractRichSegments(element) {
   const segments = []
   const ITALIC_TAGS = new Set(['em', 'i', 'cite', 'dfn', 'var'])
   const BOLD_TAGS = new Set(['strong', 'b'])
+  const BLOCK_TAGS = new Set([
+    'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 
+    'li', 'blockquote', 'section', 'article', 'aside', 
+    'header', 'footer', 'address', 'pre', 'br'
+  ])
 
   function walk(node, italic, bold) {
     if (!node) return
@@ -61,7 +66,22 @@ function extractRichSegments(element) {
       const fwNum = parseInt(fw, 10)
       if (!Number.isNaN(fwNum) && fwNum >= 600) childBold = true
     }
+
+    const startIndex = segments.length
+
+    if (tag === 'br') {
+      if (segments.length > 0) {
+        segments[segments.length - 1].isParagraphEnd = true
+      }
+    }
+
     for (const child of node.childNodes) walk(child, childItalic, childBold)
+
+    if (BLOCK_TAGS.has(tag)) {
+      if (segments.length > startIndex) {
+        segments[segments.length - 1].isParagraphEnd = true
+      }
+    }
   }
 
   walk(element, false, false)
@@ -165,11 +185,20 @@ export async function parseEPUB(file) {
 
         if (root) {
           const rawSegments = extractRichSegments(root)
-          /** @type {Array<{text: string, isItalic: boolean, isBold: boolean}>} */
+          /** @type {Array<{text: string, isItalic: boolean, isBold: boolean, isParagraphEnd: boolean}>} */
           const cleanedSegments = []
           for (const s of rawSegments) {
             const t = cleanSegmentText(s.text)
-            if (t.length > 0) cleanedSegments.push({ text: t, isItalic: s.isItalic, isBold: s.isBold })
+            if (t.trim().length > 0) {
+              cleanedSegments.push({
+                text: t,
+                isItalic: s.isItalic,
+                isBold: s.isBold,
+                isParagraphEnd: !!s.isParagraphEnd
+              })
+            } else if (s.isParagraphEnd && cleanedSegments.length > 0) {
+              cleanedSegments[cleanedSegments.length - 1].isParagraphEnd = true
+            }
           }
           if (cleanedSegments.length === 0) continue
 

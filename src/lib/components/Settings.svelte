@@ -11,6 +11,8 @@
   export let compoundWordMultiplier = 2;
   export let numberPauseMultiplier = 2;
   export let digitLengthPenalty = 10;
+  export let paragraphEndMultiplier = 3;
+  export let paragraphEndVisual = 'blank';
   export let pauseAfterWords = 0;
   export let pauseDuration = 500;
   export let frameWordCount = 1;
@@ -298,6 +300,30 @@
         <input type="range" min="100" max="2000" step="100" bind:value={pauseDuration} class="slider slider-sm">
       </div>
     {/if}
+
+    <div class="control-row">
+      <div class="control-header">
+        <span>Paragraph end multiplier</span>
+        <span class="control-value">{paragraphEndMultiplier}x</span>
+      </div>
+      <input type="range" min="1" max="8" step="0.5" bind:value={paragraphEndMultiplier} class="slider">
+    </div>
+
+    <div class="control-row">
+      <div class="control-header">
+        <span>Paragraph visual</span>
+      </div>
+      <div class="option-group">
+        <button class="option-btn" class:active={paragraphEndVisual === 'blank'}
+          on:click={() => paragraphEndVisual = 'blank'}>Blank</button>
+        <button class="option-btn" class:active={paragraphEndVisual === 'yellow'}
+          on:click={() => paragraphEndVisual = 'yellow'}>Yellow</button>
+        <button class="option-btn" class:active={paragraphEndVisual === 'pilcrow'}
+          on:click={() => paragraphEndVisual = 'pilcrow'}>¶</button>
+        <button class="option-btn" class:active={paragraphEndVisual === 'normal'}
+          on:click={() => paragraphEndVisual = 'normal'}>Normal</button>
+      </div>
+    </div>
   </section>
 </div>
 
@@ -580,6 +606,30 @@
   .slider-sm::-moz-range-thumb {
     width: 20px;
     height: 20px;
+  }
+
+  /* Paragraph visual mode picker */
+  .option-group {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .option-btn {
+    flex: 1;
+    padding: 0.5rem 0;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #888;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .option-btn.active {
+    background: #ff4444;
+    border-color: #ff4444;
+    color: #fff;
   }
 
   /* Scrollbar */

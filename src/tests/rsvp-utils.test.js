@@ -525,3 +525,48 @@ describe('extractWordFrame', () => {
     expect(result.centerOffset).toBe(2)
   })
 })
+
+describe('parseText — isParagraphEnd flag', () => {
+  it('should flag the last word of each paragraph', () => {
+    const result = parseText('Hello world\n\nFoo bar')
+    expect(result[0].isParagraphEnd).toBe(false) // Hello
+    expect(result[1].isParagraphEnd).toBe(true)  // world (end of para 1)
+    expect(result[2].isParagraphEnd).toBe(false) // Foo
+    expect(result[3].isParagraphEnd).toBe(true)  // bar (end of para 2)
+  })
+
+  it('should flag the only word in a single-paragraph text', () => {
+    const result = parseText('One two three')
+    expect(result[0].isParagraphEnd).toBe(false)
+    expect(result[1].isParagraphEnd).toBe(false)
+    expect(result[2].isParagraphEnd).toBe(true)
+  })
+
+  it('should handle three paragraphs', () => {
+    const result = parseText('A\n\nB\n\nC')
+    expect(result[0].isParagraphEnd).toBe(true) // A
+    expect(result[1].isParagraphEnd).toBe(true) // B
+    expect(result[2].isParagraphEnd).toBe(true) // C
+  })
+})
+
+describe('getWordDelay — isParagraphEnd multiplier', () => {
+  it('should apply paragraph end multiplier via max-wins', () => {
+    // 300 WPM = 200ms base, multiplier 3 -> 600ms
+    expect(getWordDelay('goodbye', 300, false, 2, 0, false, 2, 1, 0, 3, true)).toBeCloseTo(600)
+  })
+
+  it('should not apply when isParagraphEnd is false', () => {
+    expect(getWordDelay('goodbye', 300, false, 2, 0, false, 2, 1, 0, 3, false)).toBeCloseTo(200)
+  })
+
+  it('paragraph multiplier participates in max-wins — punctuation wins when higher', () => {
+    // punctuation=4x, paragraph=2x -> 4x wins -> 800ms
+    expect(getWordDelay('end.', 300, true, 4, 0, false, 2, 1, 0, 2, true)).toBeCloseTo(800)
+  })
+
+  it('paragraph multiplier participates in max-wins — paragraph wins when higher', () => {
+    // punctuation=2x, paragraph=4x -> 4x wins -> 800ms
+    expect(getWordDelay('end.', 300, true, 2, 0, false, 2, 1, 0, 4, true)).toBeCloseTo(800)
+  })
+})

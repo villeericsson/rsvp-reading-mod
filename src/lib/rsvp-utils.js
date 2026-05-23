@@ -5,7 +5,7 @@
 /**
  * Parse plain text into an array of word objects.
  * @param {string} text - The input text to parse
- * @returns {Array<{text: string, inQuotes: boolean, isItalic: boolean, isBold: boolean}>}
+ * @returns {Array<{text: string, inQuotes: boolean, isItalic: boolean, isBold: boolean, isParagraphEnd: boolean}>}
  */
 export function parseText(text) {
   if (!text || typeof text !== "string") return [];
@@ -23,7 +23,8 @@ export function parseText(text) {
 
     const rawWords = paragraph.trim().split(/\s+/).filter((w) => w.length > 0);
 
-    for (const rawWord of rawWords) {
+    for (let iWord = 0; iWord < rawWords.length; iWord++) {
+      const rawWord = rawWords[iWord];
       // Apostrophe Safety: Remove single quotes flanked by letters (don't, it's)
       const cleaned = rawWord.replace(/(?<=\p{L})['‘’](?=\p{L})/gu, '');
       let wordInQuotes = outerQuoteType !== null;
@@ -59,7 +60,8 @@ export function parseText(text) {
         }
       }
 
-      words.push({ text: rawWord, inQuotes: wordInQuotes, isItalic: false, isBold: false });
+      const isLast = (iWord === rawWords.length - 1);
+      words.push({ text: rawWord, inQuotes: wordInQuotes, isItalic: false, isBold: false, isParagraphEnd: isLast });
     }
   }
 
@@ -112,7 +114,7 @@ function trackQuotesForWord(rawWord, quoteState) {
  * Each segment is split on whitespace; every resulting word inherits its
  * segment's italic/bold flags. Quote tracking spans the whole stream.
  *
- * @param {Array<{text: string, isItalic: boolean, isBold: boolean}>} segments
+ * @param {Array<{text: string, isItalic: boolean, isBold: boolean, isParagraphEnd?: boolean}>} segments
  * @returns {Array<{text: string, inQuotes: boolean, isItalic: boolean, isBold: boolean}>}
  */
 export function parseRichText(segments) {
@@ -124,13 +126,16 @@ export function parseRichText(segments) {
   for (const seg of segments) {
     if (!seg || !seg.text) continue;
     const parts = seg.text.split(/\s+/).filter(w => w.length > 0);
-    for (const rawWord of parts) {
+    for (let i = 0; i < parts.length; i++) {
+      const rawWord = parts[i];
       const wordInQuotes = trackQuotesForWord(rawWord, quoteState);
+      const isLastOfSegment = (i === parts.length - 1);
       words.push({
         text: rawWord,
         inQuotes: wordInQuotes,
         isItalic: !!seg.isItalic,
         isBold: !!seg.isBold,
+        isParagraphEnd: isLastOfSegment && !!seg.isParagraphEnd,
       });
     }
   }
@@ -186,7 +191,7 @@ export function getActualORPIndex(word) {
 }
 
 /**
- * Calculate the display delay for a word based on WPM, punctuation, compound words, and numbers.
+ * Calculate the display delay for a word based on WPM, punctuation, compound words, numbers, and paragraph breaks.
  *
  * @param {string} word - The word to calculate delay for
  * @param {number} wordsPerMinute - Reading speed in WPM
@@ -197,6 +202,8 @@ export function getActualORPIndex(word) {
  * @param {number} compoundWordMultiplier - Multiplier for compound words
  * @param {number} numberPauseMultiplier - Base multiplier for numbers
  * @param {number} digitLengthPenalty - Extra pause percentage per digit
+ * @param {number} paragraphEndMultiplier - Multiplier for paragraph ends
+ * @param {boolean} isParagraphEnd - Whether the word is at the end of a paragraph
  * @returns {number} Delay in milliseconds
  */
 export function getWordDelay(
@@ -209,6 +216,8 @@ export function getWordDelay(
   compoundWordMultiplier = 2,
   numberPauseMultiplier = 2,
   digitLengthPenalty = 10,
+  paragraphEndMultiplier = 2,
+  isParagraphEnd = false,
 ) {
   if (!word || typeof word !== "string") return 60000 / wordsPerMinute;
   if (!wordsPerMinute || wordsPerMinute <= 0) return 200; // Default fallback
@@ -241,6 +250,10 @@ export function getWordDelay(
   if (numDigits > 0) {
     const m = numberPauseMultiplier + numDigits * (digitLengthPenalty / 100);
     multiplier = Math.max(multiplier, m);
+  }
+
+  if (isParagraphEnd) {
+    multiplier = Math.max(multiplier, paragraphEndMultiplier);
   }
 
   return baseDelay * multiplier;

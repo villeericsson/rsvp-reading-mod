@@ -21,6 +21,7 @@
   export let contextMode = false;
   export let contextWords = [];
   export let contextActiveWordIndex = -1;
+  export let paragraphPauseMode = 'none'; // 'none' | 'blank' | 'yellow' | 'pilcrow' | 'normal'
 
   $: activeFontCss =
     (FONTS.find((f) => f.id === fontFamily) ?? FONTS[0])?.cssFamily ??
@@ -32,18 +33,21 @@
   // Get the current word (either from single mode or the highlighted word in group)
   $: currentWord = useMultiMode ? wordGroup[highlightIndex] || "" : word;
 
-  // Always calculate ORP for the current word
-  $: orpIdx = currentWord ? getActualORPIndex(currentWord) : -1;
-  $: wordPrefix = currentWord ? currentWord.slice(0, orpIdx) : "";
-  $: focusChar = currentWord ? currentWord[orpIdx] || "" : "";
-  $: wordSuffix = currentWord ? currentWord.slice(orpIdx + 1) : "";
+  // Override with pilcrow symbol during paragraph pause
+  $: displayWord = paragraphPauseMode === 'pilcrow' ? '¶' : currentWord;
+
+  // Always calculate ORP for the display word
+  $: orpIdx = displayWord ? getActualORPIndex(displayWord) : -1;
+  $: wordPrefix = displayWord ? displayWord.slice(0, orpIdx) : "";
+  $: focusChar = displayWord ? displayWord[orpIdx] || "" : "";
+  $: wordSuffix = displayWord ? displayWord.slice(orpIdx + 1) : "";
 
   // Words before and after the highlighted word (for multi-word mode)
   $: wordsBefore = useMultiMode ? wordGroup.slice(0, highlightIndex) : [];
   $: wordsAfter = useMultiMode ? wordGroup.slice(highlightIndex + 1) : [];
 
   // FIX: Detect Hebrew, Arabic, and other RTL scripts
-  $: isRtl = /[\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC]/.test(currentWord);
+  $: isRtl = /[\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC]/.test(displayWord);
 
   // Dynamic scaling logic to fit long words on screen
   let displayW = 0;
@@ -146,6 +150,7 @@
       class="word-container"
       class:multi-mode={useMultiMode}
       class:dialogue-highlight={isHighlighted}
+      class:paragraph-pause-yellow={paragraphPauseMode === 'yellow'}
       style="opacity: {opacity}; transition: opacity {fadeEnabled
         ? fadeDuration
         : 0}ms ease-in-out; --text-size-multiplier: {textSize /
@@ -164,7 +169,7 @@
       </div>
 
       <div class="scale-wrapper" style="transform: scale({scaleFactor});">
-        {#if currentWord}
+        {#if displayWord}
           <div class="word-wrapper">
             <!-- Content before ORP: prefix of current word + words before -->
             <span class="before-orp" style="direction: {isRtl ? 'rtl' : 'ltr'}">
@@ -284,6 +289,10 @@
 
   .word-container.dialogue-highlight {
     --rsvp-text-color: var(--rsvp-dialogue-color);
+  }
+
+  .word-container.paragraph-pause-yellow {
+    --rsvp-text-color: #f5c518;
   }
 
   .context-words {

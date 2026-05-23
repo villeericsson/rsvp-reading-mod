@@ -89,6 +89,8 @@
   let compoundWordMultiplier = savedSettings.compoundWordMultiplier ?? 2;
   let numberPauseMultiplier = savedSettings.numberPauseMultiplier ?? 2;
   let digitLengthPenalty = savedSettings.digitLengthPenalty ?? 10;
+  let paragraphEndMultiplier = savedSettings.paragraphEndMultiplier ?? 3;
+  let paragraphEndVisual = savedSettings.paragraphEndVisual ?? 'blank';
   let highlightDialogue = savedSettings.highlightDialogue ?? true;
   let textSize = savedSettings.textSize ?? 100;
   let orpOffsetX = savedSettings.orpOffsetX ?? 0;
@@ -99,6 +101,9 @@
   let wordOpacity = 1;
   let intervalId = null;
   let fadeTimeoutId = null;
+  let isParagraphPausing = false;
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let paragraphPauseTimeoutId = null;
 
   // Derived state
   $: currentWord =
@@ -163,6 +168,8 @@
       compoundWordMultiplier,
       numberPauseMultiplier,
       digitLengthPenalty,
+      paragraphEndMultiplier,
+      paragraphEndVisual,
       highlightDialogue,
       textSize,
       frameWordCount,
@@ -178,9 +185,11 @@
     progress = 0;
   }
 
-  function getWordDelay(word) {
+  function getWordDelay(wordObj) {
+    const text = typeof wordObj === 'string' ? wordObj : wordObj.text;
+    const isParaEnd = typeof wordObj === 'string' ? false : (wordObj.isParagraphEnd ?? false);
     return getWordDelayUtil(
-      word,
+      text,
       wordsPerMinute,
       pauseOnPunctuation,
       punctuationPauseMultiplier,
@@ -189,10 +198,22 @@
       compoundWordMultiplier,
       numberPauseMultiplier,
       digitLengthPenalty,
+      paragraphEndMultiplier,
+      isParaEnd,
     );
   }
 
   function showNextWord() {
+    // Reset paragraph visual state from previous word
+    if (isParagraphPausing) {
+      isParagraphPausing = false;
+      wordOpacity = 1;
+    }
+    if (paragraphPauseTimeoutId) {
+      clearTimeout(paragraphPauseTimeoutId);
+      paragraphPauseTimeoutId = null;
+    }
+
     if (currentWordIndex >= words.length) {
       stop();
       return;
@@ -224,8 +245,20 @@
 
   function scheduleNextWord() {
     if (!isPlaying || currentWordIndex >= words.length) return;
-    const word = words[currentWordIndex - 1] || { text: "", inQuotes: false };
-    intervalId = setTimeout(showNextWord, getWordDelay(word.text));
+    const wordObj = words[currentWordIndex - 1] || { text: "", inQuotes: false };
+    const delay = getWordDelay(wordObj);
+
+    // For paragraph-end words, activate the visual state after the base word delay
+    if (wordObj.isParagraphEnd && paragraphEndVisual !== 'normal' && currentWordIndex < words.length) {
+      const baseMs = 60000 / wordsPerMinute;
+      paragraphPauseTimeoutId = setTimeout(() => {
+        if (!isPlaying) return;
+        isParagraphPausing = true;
+        if (paragraphEndVisual === 'blank') wordOpacity = 0;
+      }, baseMs);
+    }
+
+    intervalId = setTimeout(showNextWord, delay);
   }
 
   function start() {
@@ -246,10 +279,10 @@
   function pause() {
     isPlaying = false;
     isPaused = true;
-    if (intervalId) {
-      clearTimeout(intervalId);
-      intervalId = null;
-    }
+    if (intervalId) { clearTimeout(intervalId); intervalId = null; }
+    if (paragraphPauseTimeoutId) { clearTimeout(paragraphPauseTimeoutId); paragraphPauseTimeoutId = null; }
+    isParagraphPausing = false;
+    wordOpacity = 1;
     forceSaveProgress();
   }
 
@@ -275,10 +308,9 @@
     isPlaying = false;
     isPaused = false;
     wordOpacity = 1;
-    if (intervalId) {
-      clearTimeout(intervalId);
-      intervalId = null;
-    }
+    if (intervalId) { clearTimeout(intervalId); intervalId = null; }
+    if (paragraphPauseTimeoutId) { clearTimeout(paragraphPauseTimeoutId); paragraphPauseTimeoutId = null; }
+    isParagraphPausing = false;
     forceSaveProgress();
   }
 
@@ -640,6 +672,8 @@
         bind:compoundWordMultiplier
         bind:numberPauseMultiplier
         bind:digitLengthPenalty
+        bind:paragraphEndMultiplier
+        bind:paragraphEndVisual
         bind:pauseAfterWords
         bind:pauseDuration
         bind:frameWordCount
@@ -728,6 +762,7 @@
       opacity={wordOpacity}
       {fadeDuration}
       {fadeEnabled}
+      paragraphPauseMode={isParagraphPausing ? paragraphEndVisual : 'none'}
       multiWordEnabled={frameWordCount > 1}
       {orpOffsetX}
       {orpOffsetY}
