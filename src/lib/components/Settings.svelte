@@ -22,6 +22,8 @@
   export let orpOffsetX = 0;
   export let orpOffsetY = 0;
   export let fontFamily = DEFAULT_FONT_ID;
+  export let postPauseSmoothingEnabled = false;
+  export let smoothingThreshold = 5;
 
   const dispatch = createEventDispatcher();
 
@@ -324,6 +326,30 @@
           on:click={() => paragraphEndVisual = 'normal'}>Normal</button>
       </div>
     </div>
+
+    <div class="toggle-row">
+      <span class="toggle-label">Post-pause smoothing</span>
+      <button
+        class="toggle"
+        class:active={postPauseSmoothingEnabled}
+        on:click={() => (postPauseSmoothingEnabled = !postPauseSmoothingEnabled)}
+        role="switch"
+        aria-checked={postPauseSmoothingEnabled}
+        aria-label="Toggle post-pause smoothing"
+      >
+        <span class="toggle-thumb"></span>
+      </button>
+    </div>
+
+    {#if postPauseSmoothingEnabled}
+      <div class="sub-control">
+        <div class="control-header">
+          <span>Smoothing decay</span>
+          <span class="control-value">{smoothingThreshold} words</span>
+        </div>
+        <input type="range" min="2" max="15" step="1" bind:value={smoothingThreshold} class="slider slider-sm">
+      </div>
+    {/if}
   </section>
 </div>
 

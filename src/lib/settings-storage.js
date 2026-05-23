@@ -6,7 +6,7 @@ const SETTINGS_STORAGE_KEY = 'rsvp-global-settings';
 
 /**
  * Save the user settings to localStorage
- * @param {Object} settings - The settings to save
+ * @param {Record<string, unknown>} settings - The settings to save
  * @returns {boolean} Whether the save was successful
  */
 export function saveSettings(settings) {

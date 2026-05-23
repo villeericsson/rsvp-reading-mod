@@ -91,6 +91,8 @@
   let digitLengthPenalty = savedSettings.digitLengthPenalty ?? 10;
   let paragraphEndMultiplier = savedSettings.paragraphEndMultiplier ?? 3;
   let paragraphEndVisual = savedSettings.paragraphEndVisual ?? 'blank';
+  let postPauseSmoothingEnabled = savedSettings.postPauseSmoothingEnabled ?? false;
+  let smoothingThreshold = savedSettings.smoothingThreshold ?? 5;
   let highlightDialogue = savedSettings.highlightDialogue ?? true;
   let textSize = savedSettings.textSize ?? 100;
   let orpOffsetX = savedSettings.orpOffsetX ?? 0;
@@ -104,6 +106,9 @@
   let isParagraphPausing = false;
   /** @type {ReturnType<typeof setTimeout> | null} */
   let paragraphPauseTimeoutId = null;
+  // Decay engine runtime state (not persisted)
+  let decayWordsRemaining = 0;
+  let decayStartMultiplier = 1;
 
   // Derived state
   $: currentWord =
@@ -170,6 +175,8 @@
       digitLengthPenalty,
       paragraphEndMultiplier,
       paragraphEndVisual,
+      postPauseSmoothingEnabled,
+      smoothingThreshold,
       highlightDialogue,
       textSize,
       frameWordCount,
@@ -246,19 +253,37 @@
   function scheduleNextWord() {
     if (!isPlaying || currentWordIndex >= words.length) return;
     const wordObj = words[currentWordIndex - 1] || { text: "", inQuotes: false };
-    const delay = getWordDelay(wordObj);
+    const baseDelay = 60000 / wordsPerMinute;
+    const rawDelay = getWordDelay(wordObj);
+    const rawMultiplier = rawDelay / baseDelay;
+    let finalDelay = rawDelay;
+
+    if (postPauseSmoothingEnabled) {
+      let decayFactor = 1;
+      if (decayWordsRemaining > 0) {
+        const t = (smoothingThreshold - decayWordsRemaining) / smoothingThreshold;
+        decayFactor = 1 + (decayStartMultiplier - 1) * (1 - t);
+      }
+      if (rawMultiplier > decayFactor) {
+        finalDelay = rawDelay;
+        decayStartMultiplier = rawMultiplier;
+        decayWordsRemaining = smoothingThreshold;
+      } else if (decayFactor > 1) {
+        finalDelay = baseDelay * decayFactor;
+        decayWordsRemaining--;
+      }
+    }
 
     // For paragraph-end words, activate the visual state after the base word delay
     if (wordObj.isParagraphEnd && paragraphEndVisual !== 'normal' && currentWordIndex < words.length) {
-      const baseMs = 60000 / wordsPerMinute;
       paragraphPauseTimeoutId = setTimeout(() => {
         if (!isPlaying) return;
         isParagraphPausing = true;
         if (paragraphEndVisual === 'blank') wordOpacity = 0;
-      }, baseMs);
+      }, baseDelay);
     }
 
-    intervalId = setTimeout(showNextWord, delay);
+    intervalId = setTimeout(showNextWord, finalDelay);
   }
 
   function start() {
@@ -283,6 +308,8 @@
     if (paragraphPauseTimeoutId) { clearTimeout(paragraphPauseTimeoutId); paragraphPauseTimeoutId = null; }
     isParagraphPausing = false;
     wordOpacity = 1;
+    decayWordsRemaining = 0;
+    decayStartMultiplier = 1;
     forceSaveProgress();
   }
 
@@ -311,6 +338,8 @@
     if (intervalId) { clearTimeout(intervalId); intervalId = null; }
     if (paragraphPauseTimeoutId) { clearTimeout(paragraphPauseTimeoutId); paragraphPauseTimeoutId = null; }
     isParagraphPausing = false;
+    decayWordsRemaining = 0;
+    decayStartMultiplier = 1;
     forceSaveProgress();
   }
 
@@ -674,6 +703,8 @@
         bind:digitLengthPenalty
         bind:paragraphEndMultiplier
         bind:paragraphEndVisual
+        bind:postPauseSmoothingEnabled
+        bind:smoothingThreshold
         bind:pauseAfterWords
         bind:pauseDuration
         bind:frameWordCount
