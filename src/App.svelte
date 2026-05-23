@@ -85,6 +85,10 @@
   let pauseOnPunctuation = savedSettings.pauseOnPunctuation ?? true;
   let punctuationPauseMultiplier = savedSettings.punctuationPauseMultiplier ?? 2;
   let wordLengthWPMMultiplier = savedSettings.wordLengthWPMMultiplier ?? 5;
+  let pauseOnCompoundWords = savedSettings.pauseOnCompoundWords ?? true;
+  let compoundWordMultiplier = savedSettings.compoundWordMultiplier ?? 2;
+  let numberPauseMultiplier = savedSettings.numberPauseMultiplier ?? 2;
+  let digitLengthPenalty = savedSettings.digitLengthPenalty ?? 10;
   let highlightDialogue = savedSettings.highlightDialogue ?? true;
   let textSize = savedSettings.textSize ?? 100;
   let orpOffsetX = savedSettings.orpOffsetX ?? 0;
@@ -155,6 +159,10 @@
       pauseOnPunctuation,
       punctuationPauseMultiplier,
       wordLengthWPMMultiplier,
+      pauseOnCompoundWords,
+      compoundWordMultiplier,
+      numberPauseMultiplier,
+      digitLengthPenalty,
       highlightDialogue,
       textSize,
       frameWordCount,
@@ -177,6 +185,10 @@
       pauseOnPunctuation,
       punctuationPauseMultiplier,
       wordLengthWPMMultiplier,
+      pauseOnCompoundWords,
+      compoundWordMultiplier,
+      numberPauseMultiplier,
+      digitLengthPenalty,
     );
   }
 
@@ -624,6 +636,10 @@
         bind:pauseOnPunctuation
         bind:punctuationPauseMultiplier
         bind:wordLengthWPMMultiplier
+        bind:pauseOnCompoundWords
+        bind:compoundWordMultiplier
+        bind:numberPauseMultiplier
+        bind:digitLengthPenalty
         bind:pauseAfterWords
         bind:pauseDuration
         bind:frameWordCount

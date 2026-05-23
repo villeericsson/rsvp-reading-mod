@@ -332,6 +332,51 @@ describe('getWordDelay', () => {
     // Base: 200ms, long word: 200 * 1.2 = 240ms, punctuation 2x: 480ms
     expect(getWordDelay('extraordinary.', 300, true, 2, 10)).toBeCloseTo(480)
   })
+
+  it('should handle compound words delay with linear stacking and toggle control', () => {
+    // 300 WPM base = 200ms
+    // "old-school" -> 1 hyphen -> 1 + 1*(2-1) = 2x multiplier -> 400ms
+    expect(getWordDelay('old-school', 300, false, 2, 0, true, 2)).toBeCloseTo(400)
+
+    // "old-school-cool" -> 2 hyphens -> 1 + 2*(2-1) = 3x multiplier -> 600ms
+    expect(getWordDelay('old-school-cool', 300, false, 2, 0, true, 2)).toBeCloseTo(600)
+
+    // "en–dash" (en-dash –) -> 1 symbol -> 400ms
+    expect(getWordDelay('en–dash', 300, false, 2, 0, true, 2)).toBeCloseTo(400)
+
+    // "em—dash" (em-dash —) -> 1 symbol -> 400ms
+    expect(getWordDelay('em—dash', 300, false, 2, 0, true, 2)).toBeCloseTo(400)
+
+    // Toggle off: "old-school" with pauseOnCompoundWords=false -> 200ms
+    expect(getWordDelay('old-school', 300, false, 2, 0, false, 2)).toBeCloseTo(200)
+  })
+
+  it('should handle numbers delay and digit length penalty', () => {
+    // 300 WPM base = 200ms
+    // "46" -> 2 digits -> 2 + 2 * 0.10 = 2.2x multiplier -> 440ms
+    expect(getWordDelay('46', 300, false, 2, 0, false, 2, 2, 10)).toBeCloseTo(440)
+
+    // "1989" -> 4 digits -> 2 + 4 * 0.10 = 2.4x multiplier -> 480ms
+    expect(getWordDelay('1989', 300, false, 2, 0, false, 2, 2, 10)).toBeCloseTo(480)
+
+    // "1980s" -> 4 digits -> 2 + 4 * 0.10 = 2.4x multiplier -> 480ms
+    expect(getWordDelay('1980s', 300, false, 2, 0, false, 2, 2, 10)).toBeCloseTo(480)
+
+    // "abc" -> 0 digits -> no penalty -> 200ms
+    expect(getWordDelay('abc', 300, false, 2, 0, false, 2, 2, 10)).toBeCloseTo(200)
+  })
+
+  it('should apply the max-wins strategy when multiple delay categories match', () => {
+    // 300 WPM base = 200ms
+    // "1989." -> number gives 2.4x, punctuation gives 2x -> result: 2.4x -> 480ms
+    expect(getWordDelay('1989.', 300, true, 2, 0, false, 2, 2, 10)).toBeCloseTo(480)
+
+    // "old-school." -> compound gives 2x, punctuation gives 2x -> result: 2x -> 400ms
+    expect(getWordDelay('old-school.', 300, true, 2, 0, true, 2, 2, 10)).toBeCloseTo(400)
+
+    // "old-school-cool." -> compound gives 3x, punctuation gives 2x -> result: 3x -> 600ms
+    expect(getWordDelay('old-school-cool.', 300, true, 2, 0, true, 2, 2, 10)).toBeCloseTo(600)
+  })
 })
 
 describe('formatTimeRemaining', () => {

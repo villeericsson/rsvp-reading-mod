@@ -34,6 +34,10 @@ The app uses **Optimal Recognition Point (ORP)** highlighting - the red letter i
 - **Bold and Italic text support**: Bold and italic text formatting is preserved.
 - **Book Title**: Book title is displayed in the header.
 - **Context Mode**: Shows a chunk of words around the current word for context if desired.
+- **Compound Word Pauses**: Pause for words containing hyphens or dashes.
+- **Number & Digit Pauses**: Pause for numbers.
+- **Max-Wins Pause Stacking**: Employs a deterministic stacking strategy where only the strongest applicable pause multiplier is applied to a word.
+
 
 ## BELOW IS ORIGINAL VERSION'S README:
 

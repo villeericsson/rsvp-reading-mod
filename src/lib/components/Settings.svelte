@@ -7,6 +7,10 @@
   export let fadeDuration = 150;
   export let pauseOnPunctuation = true;
   export let punctuationPauseMultiplier = 2;
+  export let pauseOnCompoundWords = true;
+  export let compoundWordMultiplier = 2;
+  export let numberPauseMultiplier = 2;
+  export let digitLengthPenalty = 10;
   export let pauseAfterWords = 0;
   export let pauseDuration = 500;
   export let frameWordCount = 1;
@@ -236,6 +240,46 @@
         <input type="range" min="1" max="4" step="0.5" bind:value={punctuationPauseMultiplier} class="slider slider-sm">
       </div>
     {/if}
+
+    <div class="toggle-row">
+      <span class="toggle-label">Pause on compound words</span>
+      <button
+        class="toggle"
+        class:active={pauseOnCompoundWords}
+        on:click={() => (pauseOnCompoundWords = !pauseOnCompoundWords)}
+        role="switch"
+        aria-checked={pauseOnCompoundWords}
+        aria-label="Toggle pause on compound words"
+      >
+        <span class="toggle-thumb"></span>
+      </button>
+    </div>
+
+    {#if pauseOnCompoundWords}
+      <div class="sub-control">
+        <div class="control-header">
+          <span>Compound word multiplier</span>
+          <span class="control-value">{compoundWordMultiplier}x</span>
+        </div>
+        <input type="range" min="1" max="4" step="0.5" bind:value={compoundWordMultiplier} class="slider slider-sm">
+      </div>
+    {/if}
+
+    <div class="control-row">
+      <div class="control-header">
+        <span>Number pause multiplier</span>
+        <span class="control-value">{numberPauseMultiplier}x</span>
+      </div>
+      <input type="range" min="1" max="4" step="0.5" bind:value={numberPauseMultiplier} class="slider">
+    </div>
+
+    <div class="control-row">
+      <div class="control-header">
+        <span>Digit length penalty</span>
+        <span class="control-value">{digitLengthPenalty}%</span>
+      </div>
+      <input type="range" min="0" max="50" step="5" bind:value={digitLengthPenalty} class="slider">
+    </div>
 
     <div class="control-row">
       <div class="control-header">

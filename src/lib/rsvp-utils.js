@@ -186,13 +186,17 @@ export function getActualORPIndex(word) {
 }
 
 /**
- * Calculate the display delay for a word based on WPM and punctuation.
- * Words ending with sentence punctuation get a longer pause.
+ * Calculate the display delay for a word based on WPM, punctuation, compound words, and numbers.
  *
  * @param {string} word - The word to calculate delay for
  * @param {number} wordsPerMinute - Reading speed in WPM
  * @param {boolean} pauseOnPunctuation - Whether to add extra pause on punctuation
  * @param {number} punctuationMultiplier - Multiplier for sentence-ending punctuation
+ * @param {number} wordLengthWPMMultiplier - Multiplier for long words
+ * @param {boolean} pauseOnCompoundWords - Whether to add extra pause on compound words
+ * @param {number} compoundWordMultiplier - Multiplier for compound words
+ * @param {number} numberPauseMultiplier - Base multiplier for numbers
+ * @param {number} digitLengthPenalty - Extra pause percentage per digit
  * @returns {number} Delay in milliseconds
  */
 export function getWordDelay(
@@ -201,11 +205,15 @@ export function getWordDelay(
   pauseOnPunctuation = true,
   punctuationMultiplier = 2,
   wordLengthWPMMultiplier = 0,
+  pauseOnCompoundWords = true,
+  compoundWordMultiplier = 2,
+  numberPauseMultiplier = 2,
+  digitLengthPenalty = 10,
 ) {
   if (!word || typeof word !== "string") return 60000 / wordsPerMinute;
   if (!wordsPerMinute || wordsPerMinute <= 0) return 200; // Default fallback
 
-  var baseDelay = 60000 / wordsPerMinute;
+  let baseDelay = 60000 / wordsPerMinute;
 
   // Longer pause for long words (12+ characters is roughly 2 standard deviations above average English word length)
   if (wordLengthWPMMultiplier > 0 && word.length >= 12) {
@@ -213,18 +221,29 @@ export function getWordDelay(
     baseDelay *= 1 + ((wordLengthWPMMultiplier / 100) * (word.length - 12));
   }
 
+  // Collect candidates
+  let multiplier = 1;
+
   if (pauseOnPunctuation) {
-    // Longer pause for sentence-ending punctuation
-    if (/[.!?;:]$/.test(word)) {
-      return baseDelay * punctuationMultiplier;
-    }
-    // Shorter pause for commas
-    if (/[,]$/.test(word)) {
-      return baseDelay * 1.5;
+    if (/[.!?;:]$/.test(word)) multiplier = Math.max(multiplier, punctuationMultiplier);
+    else if (/,$/.test(word))  multiplier = Math.max(multiplier, 1.5);
+  }
+
+  if (pauseOnCompoundWords) {
+    const numSymbols = (word.match(/[-–—]/g) || []).length;
+    if (numSymbols > 0) {
+      const m = 1 + numSymbols * (compoundWordMultiplier - 1);
+      multiplier = Math.max(multiplier, m);
     }
   }
 
-  return baseDelay;
+  const numDigits = (word.match(/\d/g) || []).length;
+  if (numDigits > 0) {
+    const m = numberPauseMultiplier + numDigits * (digitLengthPenalty / 100);
+    multiplier = Math.max(multiplier, m);
+  }
+
+  return baseDelay * multiplier;
 }
 
 /**
