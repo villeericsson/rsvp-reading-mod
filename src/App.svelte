@@ -783,6 +783,7 @@
     <RSVPDisplay
       word={currentWord?.text || ""}
       inQuotes={currentWord?.inQuotes || false}
+      quoteDepth={currentWord?.quoteDepth || 0}
       isItalic={currentWord?.isItalic || false}
       isBold={currentWord?.isBold || false}
       {highlightDialogue}

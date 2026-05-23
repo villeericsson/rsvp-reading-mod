@@ -4,64 +4,50 @@
 
 /**
  * Parse plain text into an array of word objects.
+ *
+ * Quote tracking uses a stack so that nested quotes contribute to a `quoteDepth`
+ * (0 = narration, 1 = inside outer quote, 2 = quote-within-quote, ...). The
+ * legacy `inQuotes` field is derived as `quoteDepth > 0` for backward compatibility.
+ *
+ * Ambiguous straight quotes (" and ') are classified open/close from their
+ * surrounding characters in the raw paragraph string — this is what lets
+ * same-type nesting like `"He said "stop" now"` work. The original word text is
+ * preserved verbatim; normalization is internal only.
+ *
+ * Quote state carries across paragraph breaks only when the next paragraph
+ * opens with the same type as the currently-open quote (convention for
+ * multi-paragraph speech). Otherwise the stack is cleared at the boundary —
+ * orphan/unclosed quotes from typos can't cascade across the whole document.
+ *
  * @param {string} text - The input text to parse
- * @returns {Array<{text: string, inQuotes: boolean, isItalic: boolean, isBold: boolean, isParagraphEnd: boolean}>}
+ * @returns {Array<{text: string, inQuotes: boolean, quoteDepth: number, isItalic: boolean, isBold: boolean, isParagraphEnd: boolean}>}
  */
 export function parseText(text) {
   if (!text || typeof text !== "string") return [];
-  
-  // Split into paragraphs by double newlines (or more) to handle structural breaks
-  // We use \n\s*\n to match two or more newlines potentially separated by whitespace
+
   const paragraphs = text.split(/\n\s*\n/);
-  
   const words = [];
+  const quoteState = { stack: [] };
 
-  for (const paragraph of paragraphs) {
-    // Reset quote state at the start of each paragraph to prevent cascading inversions.
-    // Track the OUTER quote type so nested quotes of the other type don't toggle state.
-    let outerQuoteType = null; // null | 'double' | 'single'
+  for (let p = 0; p < paragraphs.length; p++) {
+    const paragraph = paragraphs[p];
+    const trimmed = paragraph.trim();
+    if (!trimmed) continue;
 
-    const rawWords = paragraph.trim().split(/\s+/).filter((w) => w.length > 0);
+    maybeCarryQuoteAcrossParagraph(quoteState, trimmed);
 
-    for (let iWord = 0; iWord < rawWords.length; iWord++) {
-      const rawWord = rawWords[iWord];
-      // Apostrophe Safety: Remove single quotes flanked by letters (don't, it's)
-      const cleaned = rawWord.replace(/(?<=\p{L})['‘’](?=\p{L})/gu, '');
-      let wordInQuotes = outerQuoteType !== null;
-
-      for (let i = 0; i < cleaned.length; i++) {
-        const ch = cleaned[i];
-        let kind = null;
-
-        if (ch === '“') kind = 'dOpen';
-        else if (ch === '”') kind = 'dClose';
-        else if (ch === '‘') kind = 'sOpen';
-        else if (ch === '’') kind = 'sClose';
-        else if (ch === '"') kind = (i === 0) ? 'dOpen' : 'dClose';
-        else if (ch === "'") {
-          // Leading ' opens; trailing ' only closes when already in a single-quote outer
-          // (guards against possessives like dogs')
-          if (i === 0) kind = 'sOpen';
-          else if (outerQuoteType === 'single' && /^['.,!?;:]*$/.test(cleaned.slice(i))) {
-            kind = 'sClose';
-          }
-        }
-        if (!kind) continue;
-
-        if (outerQuoteType === null) {
-          if (kind === 'dOpen')      { outerQuoteType = 'double'; wordInQuotes = true; }
-          else if (kind === 'sOpen') { outerQuoteType = 'single'; wordInQuotes = true; }
-        } else if (outerQuoteType === 'double') {
-          wordInQuotes = true;
-          if (kind === 'dClose') outerQuoteType = null;
-        } else {
-          wordInQuotes = true;
-          if (kind === 'sClose') outerQuoteType = null;
-        }
-      }
-
-      const isLast = (iWord === rawWords.length - 1);
-      words.push({ text: rawWord, inQuotes: wordInQuotes, isItalic: false, isBold: false, isParagraphEnd: isLast });
+    const tokens = tokenizeParagraph(trimmed);
+    for (let i = 0; i < tokens.length; i++) {
+      const tok = tokens[i];
+      const quoteDepth = processWordQuoteEvents(tok, quoteState);
+      words.push({
+        text: tok.text,
+        inQuotes: quoteDepth > 0,
+        quoteDepth,
+        isItalic: false,
+        isBold: false,
+        isParagraphEnd: i === tokens.length - 1,
+      });
     }
   }
 
@@ -69,44 +55,214 @@ export function parseText(text) {
 }
 
 /**
- * Process a single raw word for quote tracking. Mutates the passed quoteState
- * (an object with an `outerQuoteType` field).
- * @returns {boolean} whether the word is inside quotes
+ * Apostrophe characters that appear between two letters are contractions
+ * (don't, it's, O'Brien) and never participate in quote tracking.
  */
-function trackQuotesForWord(rawWord, quoteState) {
-  const cleaned = rawWord.replace(/(?<=\p{L})['‘’](?=\p{L})/gu, '');
-  let wordInQuotes = quoteState.outerQuoteType !== null;
+const APOSTROPHE_BETWEEN_LETTERS = /(?<=\p{L})['‘’](?=\p{L})/gu;
 
-  for (let i = 0; i < cleaned.length; i++) {
-    const ch = cleaned[i];
-    let kind = null;
+/**
+ * Walk a paragraph string and emit token objects:
+ *   { text, events: Array<{kind, indexInToken}> }
+ * where `events` lists every quote mark in the token with its classification
+ * computed from the surrounding chars in the raw string (whitespace before/after,
+ * punctuation, letter/digit context). Apostrophes inside contractions are
+ * filtered out and produce no events.
+ *
+ * The `kind` is one of: 'dOpen', 'dClose', 'sOpen', 'sClose', 'ambiguous-d',
+ * 'ambiguous-s'. 'ambiguous-*' means the classifier couldn't decide from local
+ * context and the stack-aware resolver will decide at processing time.
+ */
+function tokenizeParagraph(paragraph) {
+  const tokens = [];
+  let current = null;
 
-    if (ch === '“') kind = 'dOpen';
-    else if (ch === '”') kind = 'dClose';
-    else if (ch === '‘') kind = 'sOpen';
-    else if (ch === '’') kind = 'sClose';
-    else if (ch === '"') kind = (i === 0) ? 'dOpen' : 'dClose';
-    else if (ch === "'") {
-      if (i === 0) kind = 'sOpen';
-      else if (quoteState.outerQuoteType === 'single' && /^['.,!?;:]*$/.test(cleaned.slice(i))) {
-        kind = 'sClose';
+  for (let i = 0; i < paragraph.length; i++) {
+    const ch = paragraph[i];
+    if (/\s/.test(ch)) {
+      if (current) {
+        tokens.push(current);
+        current = null;
       }
+      continue;
     }
-    if (!kind) continue;
 
-    if (quoteState.outerQuoteType === null) {
-      if (kind === 'dOpen')      { quoteState.outerQuoteType = 'double'; wordInQuotes = true; }
-      else if (kind === 'sOpen') { quoteState.outerQuoteType = 'single'; wordInQuotes = true; }
-    } else if (quoteState.outerQuoteType === 'double') {
-      wordInQuotes = true;
-      if (kind === 'dClose') quoteState.outerQuoteType = null;
-    } else {
-      wordInQuotes = true;
-      if (kind === 'sClose') quoteState.outerQuoteType = null;
+    if (!current) current = { text: '', events: [] };
+    const indexInToken = current.text.length;
+    current.text += ch;
+
+    const kind = classifyQuoteChar(paragraph, i);
+    if (kind) current.events.push({ kind, indexInToken });
+  }
+  if (current) tokens.push(current);
+
+  // Strip events for apostrophes-between-letters (contractions). The regex
+  // operates on the final token text; we just drop any 's*' event whose token-
+  // local index sits between two letters.
+  for (const tok of tokens) {
+    if (tok.events.length === 0) continue;
+    if (!/[''‘’]/.test(tok.text)) continue;
+    tok.events = tok.events.filter((ev) => {
+      const ch = tok.text[ev.indexInToken];
+      if (ch !== "'" && ch !== '‘' && ch !== '’') return true;
+      const prev = tok.text[ev.indexInToken - 1];
+      const next = tok.text[ev.indexInToken + 1];
+      const isLetter = (c) => c && /\p{L}/u.test(c);
+      // Contraction between letters (don't, O'Brien)
+      if (isLetter(prev) && isLetter(next)) return false;
+      // Decade/year elision: ' followed by a digit ('90s, '76)
+      if (next && /\d/.test(next)) return false;
+      return true;
+    });
+  }
+
+  return tokens;
+}
+
+/**
+ * Classify a single quote character based on the chars immediately before and
+ * after it in the raw paragraph string. Returns null for non-quote chars.
+ */
+function classifyQuoteChar(s, i) {
+  const ch = s[i];
+
+  // Unambiguous curly quotes
+  if (ch === '“') return 'dOpen';
+  if (ch === '”') return 'dClose';
+  if (ch === '‘') return 'sOpen';
+  if (ch === '’') return 'sClose';
+
+  if (ch !== '"' && ch !== "'") return null;
+
+  const prev = i > 0 ? s[i - 1] : '';
+  const next = i < s.length - 1 ? s[i + 1] : '';
+
+  const opensLeft  = !prev || /[\s(\[{“‘"']/.test(prev);
+  const closesRight = !next || /[\s.,!?;:)\]}”’]/.test(next);
+  const wordLeft  = /[\p{L}\p{N}]/u.test(prev || '');
+  const wordRight = /[\p{L}\p{N}]/u.test(next || '');
+
+  const baseKind = ch === '"' ? 'd' : 's';
+
+  // Strong open: whitespace/bracket before, word char after
+  if (opensLeft && wordRight) return baseKind + 'Open';
+  // Strong close: word/punct before, whitespace/punct after
+  if ((wordLeft || /[.,!?;:)\]}]/.test(prev)) && closesRight) return baseKind + 'Close';
+  // Open at start of string with no clear right-hand signal
+  if (!prev) return baseKind + 'Open';
+  // Close at end of string with no clear left-hand signal
+  if (!next) return baseKind + 'Close';
+
+  // Both sides look "wordy" or otherwise ambiguous — defer to the stack
+  return 'ambiguous-' + baseKind;
+}
+
+/**
+ * Apply a token's quote events to the stack and return the max depth the word
+ * passed through (so the opening word of a quote is considered "inside" it).
+ */
+function processWordQuoteEvents(tok, quoteState) {
+  let maxDepth = quoteState.stack.length;
+  // If the token starts inside a quote, that's the baseline depth.
+  const startedInside = quoteState.stack.length > 0;
+  if (startedInside) maxDepth = Math.max(maxDepth, quoteState.stack.length);
+
+  for (const ev of tok.events) {
+    let kind = ev.kind;
+    if (kind === 'ambiguous-d' || kind === 'ambiguous-s') {
+      const type = kind === 'ambiguous-d' ? 'double' : 'single';
+      const top = quoteState.stack[quoteState.stack.length - 1];
+      kind = (top === type) ? (type === 'double' ? 'dClose' : 'sClose')
+                            : (type === 'double' ? 'dOpen'  : 'sOpen');
+    }
+
+    if (kind === 'dOpen') {
+      quoteState.stack.push('double');
+      maxDepth = Math.max(maxDepth, quoteState.stack.length);
+    } else if (kind === 'sOpen') {
+      quoteState.stack.push('single');
+      maxDepth = Math.max(maxDepth, quoteState.stack.length);
+    } else if (kind === 'dClose') {
+      const top = quoteState.stack[quoteState.stack.length - 1];
+      if (top === 'double') quoteState.stack.pop();
+      // mismatched close: ignore
+    } else if (kind === 'sClose') {
+      const top = quoteState.stack[quoteState.stack.length - 1];
+      if (top === 'single') quoteState.stack.pop();
+      // mismatched close: ignore
     }
   }
 
-  return wordInQuotes;
+  return maxDepth;
+}
+
+/**
+ * Before processing a new paragraph, decide whether to carry the open quote
+ * stack from the previous paragraph into this one.
+ *
+ * Rule: carry only if the new paragraph's first non-space char matches the
+ * type currently on top of the stack. (English convention: a continuing
+ * multi-paragraph speech repeats the opening mark at each paragraph start.)
+ * Otherwise force-close everything to prevent runaway highlighting.
+ */
+function maybeCarryQuoteAcrossParagraph(quoteState, trimmedParagraph) {
+  if (quoteState.stack.length === 0) return;
+  const first = trimmedParagraph[0];
+  const top = quoteState.stack[quoteState.stack.length - 1];
+  const matches =
+    (top === 'double' && (first === '"' || first === '“')) ||
+    (top === 'single' && (first === "'" || first === '‘'));
+  if (matches) {
+    // The leading mark is a continuation marker (English convention for
+    // multi-paragraph speech). Pop now — the classifier will see it as an
+    // open and re-push it, leaving the depth unchanged.
+    quoteState.stack.pop();
+  } else {
+    // No continuation signal — clear the stack so an orphan/unclosed quote
+    // doesn't cascade into unrelated narration.
+    quoteState.stack = [];
+  }
+}
+
+/**
+ * Process a single raw word for quote tracking using the shared classifier.
+ * Used by parseRichText where text arrives pre-segmented and whitespace context
+ * has already been lost — we still want depth tracking, but the ambiguous-
+ * straight-quote resolution falls back to stack-state alone.
+ *
+ * @returns {number} the word's quote depth (0 = narration)
+ */
+function trackQuotesForWord(rawWord, quoteState) {
+  const cleaned = rawWord.replace(APOSTROPHE_BETWEEN_LETTERS, '');
+  let maxDepth = quoteState.stack.length;
+
+  for (let i = 0; i < cleaned.length; i++) {
+    // Build a tiny pseudo-context: pad with spaces so start/end-of-word looks
+    // like whitespace boundaries to the classifier.
+    const padded = ' ' + cleaned + ' ';
+    let kind = classifyQuoteChar(padded, i + 1);
+    if (!kind) continue;
+
+    if (kind === 'ambiguous-d' || kind === 'ambiguous-s') {
+      const type = kind === 'ambiguous-d' ? 'double' : 'single';
+      const top = quoteState.stack[quoteState.stack.length - 1];
+      kind = (top === type) ? (type === 'double' ? 'dClose' : 'sClose')
+                            : (type === 'double' ? 'dOpen'  : 'sOpen');
+    }
+
+    if (kind === 'dOpen') {
+      quoteState.stack.push('double');
+      maxDepth = Math.max(maxDepth, quoteState.stack.length);
+    } else if (kind === 'sOpen') {
+      quoteState.stack.push('single');
+      maxDepth = Math.max(maxDepth, quoteState.stack.length);
+    } else if (kind === 'dClose') {
+      if (quoteState.stack[quoteState.stack.length - 1] === 'double') quoteState.stack.pop();
+    } else if (kind === 'sClose') {
+      if (quoteState.stack[quoteState.stack.length - 1] === 'single') quoteState.stack.pop();
+    }
+  }
+
+  return maxDepth;
 }
 
 /**
@@ -115,24 +271,25 @@ function trackQuotesForWord(rawWord, quoteState) {
  * segment's italic/bold flags. Quote tracking spans the whole stream.
  *
  * @param {Array<{text: string, isItalic: boolean, isBold: boolean, isParagraphEnd?: boolean}>} segments
- * @returns {Array<{text: string, inQuotes: boolean, isItalic: boolean, isBold: boolean}>}
+ * @returns {Array<{text: string, inQuotes: boolean, quoteDepth: number, isItalic: boolean, isBold: boolean, isParagraphEnd: boolean}>}
  */
 export function parseRichText(segments) {
   if (!Array.isArray(segments) || segments.length === 0) return [];
 
   const words = [];
-  const quoteState = { outerQuoteType: null };
+  const quoteState = { stack: [] };
 
   for (const seg of segments) {
     if (!seg || !seg.text) continue;
     const parts = seg.text.split(/\s+/).filter(w => w.length > 0);
     for (let i = 0; i < parts.length; i++) {
       const rawWord = parts[i];
-      const wordInQuotes = trackQuotesForWord(rawWord, quoteState);
+      const quoteDepth = trackQuotesForWord(rawWord, quoteState);
       const isLastOfSegment = (i === parts.length - 1);
       words.push({
         text: rawWord,
-        inQuotes: wordInQuotes,
+        inQuotes: quoteDepth > 0,
+        quoteDepth,
         isItalic: !!seg.isItalic,
         isBold: !!seg.isBold,
         isParagraphEnd: isLastOfSegment && !!seg.isParagraphEnd,

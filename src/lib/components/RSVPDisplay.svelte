@@ -11,6 +11,7 @@
   export let fadeEnabled = true;
   export let multiWordEnabled = false;
   export let inQuotes = false;
+  export let quoteDepth = 0;
   export let highlightDialogue = false;
   export let textSize = 100;
   export let orpOffsetX = 0;
@@ -28,7 +29,9 @@
     "sans-serif";
 
   $: useMultiMode = multiWordEnabled && wordGroup.length > 0;
-  $: isHighlighted = inQuotes && highlightDialogue;
+  $: effectiveDepth = inQuotes ? Math.max(1, quoteDepth) : quoteDepth;
+  $: isHighlighted = effectiveDepth > 0 && highlightDialogue;
+  $: dialogueDepth = Math.min(effectiveDepth, 3); // clamp for CSS — depths >=3 share style
 
   // Get the current word (either from single mode or the highlighted word in group)
   $: currentWord = useMultiMode ? wordGroup[highlightIndex] || "" : word;
@@ -127,9 +130,16 @@
             class:ctx-italic={w.isItalic}
             class:ctx-bold={w.isBold}
             class:ctx-dialogue={w.inQuotes && highlightDialogue}
+            class:ctx-dialogue-2={w.inQuotes && highlightDialogue && (w.quoteDepth || 0) === 2}
+            class:ctx-dialogue-3={w.inQuotes && highlightDialogue && (w.quoteDepth || 0) >= 3}
           >
             {#if i === contextActiveWordIndex}
-              <span class="active-word-wrapper" class:dialogue={w.inQuotes && highlightDialogue}>
+              <span
+                class="active-word-wrapper"
+                class:dialogue={w.inQuotes && highlightDialogue}
+                class:dialogue-2={w.inQuotes && highlightDialogue && (w.quoteDepth || 0) === 2}
+                class:dialogue-3={w.inQuotes && highlightDialogue && (w.quoteDepth || 0) >= 3}
+              >
                 <span>{wordPrefix}</span><span class="orp" bind:this={orpEl}>{focusChar}</span><span>{wordSuffix}</span>
               </span>
             {:else}
@@ -150,6 +160,8 @@
       class="word-container"
       class:multi-mode={useMultiMode}
       class:dialogue-highlight={isHighlighted}
+      class:dialogue-depth-2={isHighlighted && dialogueDepth === 2}
+      class:dialogue-depth-3={isHighlighted && dialogueDepth >= 3}
       class:paragraph-pause-yellow={paragraphPauseMode === 'yellow'}
       style="opacity: {opacity}; transition: opacity {fadeEnabled
         ? fadeDuration
@@ -212,6 +224,8 @@
   .rsvp-display {
     --rsvp-text-color: #fff;
     --rsvp-dialogue-color: #4a90e2;
+    --rsvp-dialogue-color-2: #7ec0f7;
+    --rsvp-dialogue-color-3: #b6dcfb;
     --rsvp-orp-color: #ff4444;
 
     position: relative;
@@ -289,6 +303,14 @@
 
   .word-container.dialogue-highlight {
     --rsvp-text-color: var(--rsvp-dialogue-color);
+  }
+
+  .word-container.dialogue-highlight.dialogue-depth-2 {
+    --rsvp-text-color: var(--rsvp-dialogue-color-2);
+  }
+
+  .word-container.dialogue-highlight.dialogue-depth-3 {
+    --rsvp-text-color: var(--rsvp-dialogue-color-3);
   }
 
   .word-container.paragraph-pause-yellow {
@@ -383,6 +405,14 @@
     opacity: 0.55;
   }
 
+  .ctx-dialogue.ctx-dialogue-2 {
+    color: var(--rsvp-dialogue-color-2, #7ec0f7);
+  }
+
+  .ctx-dialogue.ctx-dialogue-3 {
+    color: var(--rsvp-dialogue-color-3, #b6dcfb);
+  }
+
   .ctx-active-word {
     color: #fff;
   }
@@ -401,6 +431,14 @@
 
   .active-word-wrapper.dialogue {
     color: var(--rsvp-dialogue-color, #4a90e2);
+  }
+
+  .active-word-wrapper.dialogue.dialogue-2 {
+    color: var(--rsvp-dialogue-color-2, #7ec0f7);
+  }
+
+  .active-word-wrapper.dialogue.dialogue-3 {
+    color: var(--rsvp-dialogue-color-3, #b6dcfb);
   }
 
   .active-word-wrapper .orp {

@@ -130,6 +130,90 @@ describe('parseText', () => {
       { text: 'later', inQuotes: false }
     ])
   })
+
+  it('should handle same-type straight-quote nesting via context classifier', () => {
+    const result = parseText(`He said "I told her "stop" yesterday" calmly.`)
+    expect(result).toMatchObject([
+      { text: 'He',         inQuotes: false, quoteDepth: 0 },
+      { text: 'said',       inQuotes: false, quoteDepth: 0 },
+      { text: '"I',         inQuotes: true,  quoteDepth: 1 },
+      { text: 'told',       inQuotes: true,  quoteDepth: 1 },
+      { text: 'her',        inQuotes: true,  quoteDepth: 1 },
+      { text: '"stop"',     inQuotes: true,  quoteDepth: 2 },
+      { text: 'yesterday"', inQuotes: true,  quoteDepth: 1 },
+      { text: 'calmly.',    inQuotes: false, quoteDepth: 0 }
+    ])
+  })
+
+  it('should report quoteDepth >= 2 for mixed nested smart/straight quotes', () => {
+    const result = parseText(`She replied, "He said 'go now' before leaving."`)
+    expect(result).toMatchObject([
+      { text: 'She',      inQuotes: false, quoteDepth: 0 },
+      { text: 'replied,', inQuotes: false, quoteDepth: 0 },
+      { text: '"He',      inQuotes: true,  quoteDepth: 1 },
+      { text: 'said',     inQuotes: true,  quoteDepth: 1 },
+      { text: "'go",      inQuotes: true,  quoteDepth: 2 },
+      { text: "now'",     inQuotes: true,  quoteDepth: 2 },
+      { text: 'before',   inQuotes: true,  quoteDepth: 1 },
+      { text: 'leaving."', inQuotes: true, quoteDepth: 1 }
+    ])
+  })
+
+  it('should carry a multi-paragraph speech across paragraph breaks', () => {
+    const result = parseText(`"This is paragraph one of his speech.\n\n"And this is paragraph two, still speaking."`)
+    expect(result).toMatchObject([
+      { text: '"This',      inQuotes: true,  quoteDepth: 1 },
+      { text: 'is',         inQuotes: true,  quoteDepth: 1 },
+      { text: 'paragraph',  inQuotes: true,  quoteDepth: 1 },
+      { text: 'one',        inQuotes: true,  quoteDepth: 1 },
+      { text: 'of',         inQuotes: true,  quoteDepth: 1 },
+      { text: 'his',        inQuotes: true,  quoteDepth: 1 },
+      { text: 'speech.',    inQuotes: true,  quoteDepth: 1, isParagraphEnd: true },
+      { text: '"And',       inQuotes: true,  quoteDepth: 1 },
+      { text: 'this',       inQuotes: true,  quoteDepth: 1 },
+      { text: 'is',         inQuotes: true,  quoteDepth: 1 },
+      { text: 'paragraph',  inQuotes: true,  quoteDepth: 1 },
+      { text: 'two,',       inQuotes: true,  quoteDepth: 1 },
+      { text: 'still',      inQuotes: true,  quoteDepth: 1 },
+      { text: 'speaking."', inQuotes: true,  quoteDepth: 1 }
+    ])
+  })
+
+  it('should force-close orphan quotes at paragraph boundary (safety valve)', () => {
+    const result = parseText(`"Unclosed quote here.\n\nA fresh paragraph of narration.`)
+    expect(result).toMatchObject([
+      { text: '"Unclosed', inQuotes: true,  quoteDepth: 1 },
+      { text: 'quote',     inQuotes: true,  quoteDepth: 1 },
+      { text: 'here.',     inQuotes: true,  quoteDepth: 1, isParagraphEnd: true },
+      { text: 'A',         inQuotes: false, quoteDepth: 0 },
+      { text: 'fresh',     inQuotes: false, quoteDepth: 0 },
+      { text: 'paragraph', inQuotes: false, quoteDepth: 0 },
+      { text: 'of',        inQuotes: false, quoteDepth: 0 },
+      { text: 'narration.',inQuotes: false, quoteDepth: 0 }
+    ])
+  })
+
+  it("should not treat apostrophe in O'Brien or '90s as opening a quote", () => {
+    const result = parseText(`O'Brien said the '90s were good.`)
+    expect(result).toMatchObject([
+      { text: "O'Brien", inQuotes: false, quoteDepth: 0 },
+      { text: 'said',    inQuotes: false, quoteDepth: 0 },
+      { text: 'the',     inQuotes: false, quoteDepth: 0 },
+      { text: "'90s",    inQuotes: false, quoteDepth: 0 },
+      { text: 'were',    inQuotes: false, quoteDepth: 0 },
+      { text: 'good.',   inQuotes: false, quoteDepth: 0 }
+    ])
+  })
+
+  it('should classify quotes with no space after comma (said,"OK")', () => {
+    const result = parseText(`He said,"OK then" loudly.`)
+    expect(result).toMatchObject([
+      { text: 'He',        inQuotes: false, quoteDepth: 0 },
+      { text: 'said,"OK',  inQuotes: true,  quoteDepth: 1 },
+      { text: 'then"',     inQuotes: true,  quoteDepth: 1 },
+      { text: 'loudly.',   inQuotes: false, quoteDepth: 0 }
+    ])
+  })
 })
 
 describe('getORPIndex', () => {
