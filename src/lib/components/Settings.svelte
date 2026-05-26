@@ -33,6 +33,29 @@
     dispatch('close');
   }
 
+  function scrollGuard(node) {
+    let lastScrollAt = 0;
+    const WINDOW_MS = 300;
+
+    const onScroll = () => { lastScrollAt = performance.now(); };
+    const onClickCapture = (e) => {
+      if (performance.now() - lastScrollAt < WINDOW_MS) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    };
+
+    node.addEventListener('scroll', onScroll, { passive: true });
+    node.addEventListener('click', onClickCapture, true);
+
+    return {
+      destroy() {
+        node.removeEventListener('scroll', onScroll);
+        node.removeEventListener('click', onClickCapture, true);
+      }
+    };
+  }
+
   // Quick WPM presets
   const wpmPresets = [200, 300, 400, 500];
   const textSizePresets = [25, 50, 75, 100, 150];
@@ -47,6 +70,8 @@
       </svg>
     </button>
   </div>
+
+  <div class="settings-body" use:scrollGuard>
 
   <!-- Speed Section -->
   <section class="settings-section">
@@ -369,6 +394,8 @@
       <p class="hint-text">Caps any single word's display time. The WPM shown is how slow the slowest moment will feel.</p>
     </div>
   </section>
+
+  </div>
 </div>
 
 <style>
@@ -376,19 +403,27 @@
     background: #0a0a0a;
     border: 1px solid #222;
     border-radius: 20px;
-    padding: 2rem;
     width: 480px;
     max-height: 85vh;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .settings-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2rem;
-    padding-bottom: 1.25rem;
+    padding: 1.5rem 2rem 1.25rem;
     border-bottom: 1px solid #1a1a1a;
+    flex-shrink: 0;
+  }
+
+  .settings-body {
+    overflow-y: auto;
+    padding: 1.5rem 2rem 2rem;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   h3 {
@@ -614,6 +649,7 @@
     appearance: none;
     cursor: pointer;
     outline: none;
+    touch-action: pan-y;
   }
 
   .slider::-webkit-slider-thumb {
@@ -677,15 +713,15 @@
   }
 
   /* Scrollbar */
-  .settings-panel::-webkit-scrollbar {
+  .settings-body::-webkit-scrollbar {
     width: 6px;
   }
 
-  .settings-panel::-webkit-scrollbar-track {
+  .settings-body::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  .settings-panel::-webkit-scrollbar-thumb {
+  .settings-body::-webkit-scrollbar-thumb {
     background: #333;
     border-radius: 3px;
   }
@@ -702,7 +738,14 @@
       width: 100%;
       max-width: none;
       border-radius: 16px;
-      padding: 1.5rem;
+    }
+
+    .settings-header {
+      padding: 1rem 1.25rem 0.875rem;
+    }
+
+    .settings-body {
+      padding: 1rem 1.25rem 1.5rem;
     }
 
     h3 {
