@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseText,
+  parseRichText,
   getORPIndex,
   getActualORPIndex,
   getWordDelay,
@@ -159,24 +160,19 @@ describe('parseText', () => {
     ])
   })
 
-  it('should carry a multi-paragraph speech across paragraph breaks', () => {
+  it('should always reset stack at paragraph boundary (no cross-paragraph carry)', () => {
+    // Cross-paragraph carry was removed because rare classifier misfires would
+    // cascade across whole chapters in EPUBs/PDFs and progressively highlight
+    // everything. Every paragraph starts with a clean stack.
     const result = parseText(`"This is paragraph one of his speech.\n\n"And this is paragraph two, still speaking."`)
-    expect(result).toMatchObject([
-      { text: '"This',      inQuotes: true,  quoteDepth: 1 },
-      { text: 'is',         inQuotes: true,  quoteDepth: 1 },
-      { text: 'paragraph',  inQuotes: true,  quoteDepth: 1 },
-      { text: 'one',        inQuotes: true,  quoteDepth: 1 },
-      { text: 'of',         inQuotes: true,  quoteDepth: 1 },
-      { text: 'his',        inQuotes: true,  quoteDepth: 1 },
-      { text: 'speech.',    inQuotes: true,  quoteDepth: 1, isParagraphEnd: true },
-      { text: '"And',       inQuotes: true,  quoteDepth: 1 },
-      { text: 'this',       inQuotes: true,  quoteDepth: 1 },
-      { text: 'is',         inQuotes: true,  quoteDepth: 1 },
-      { text: 'paragraph',  inQuotes: true,  quoteDepth: 1 },
-      { text: 'two,',       inQuotes: true,  quoteDepth: 1 },
-      { text: 'still',      inQuotes: true,  quoteDepth: 1 },
-      { text: 'speaking."', inQuotes: true,  quoteDepth: 1 }
-    ])
+    // First paragraph never closes its quote, but every word stays at depth 1.
+    expect(result[0]).toMatchObject({ text: '"This',   inQuotes: true, quoteDepth: 1 })
+    expect(result[6]).toMatchObject({ text: 'speech.', inQuotes: true, quoteDepth: 1, isParagraphEnd: true })
+    // Second paragraph: stack was reset, so "And opens fresh at depth 1 (not 2).
+    expect(result[7]).toMatchObject({ text: '"And',        inQuotes: true, quoteDepth: 1 })
+    expect(result.at(-1)).toMatchObject({ text: 'speaking."', inQuotes: true, quoteDepth: 1 })
+    // No word anywhere exceeds depth 1.
+    expect(Math.max(...result.map(w => w.quoteDepth))).toBe(1)
   })
 
   it('should force-close orphan quotes at paragraph boundary (safety valve)', () => {
@@ -607,6 +603,37 @@ describe('extractWordFrame', () => {
     const result = extractWordFrame(words, 9, 5)
     expect(result.subset).toEqual(['eight', 'nine', 'ten'])
     expect(result.centerOffset).toBe(2)
+  })
+})
+
+describe('parseRichText — quote stack containment', () => {
+  it('should reset quote stack at paragraph boundaries so an unclosed quote does not pollute later paragraphs', () => {
+    // Simulates a chapter where one paragraph has an unclosed quote (or any
+    // rare classifier misfire). Without paragraph reset, the stack would
+    // stay non-empty and every subsequent word would be highlighted, with
+    // depth eventually climbing past 1.
+    const segments = [
+      { text: '"Hello there.',          isItalic: false, isBold: false, isParagraphEnd: true },
+      { text: 'A new paragraph begins.', isItalic: false, isBold: false, isParagraphEnd: true },
+      { text: 'And another one starts.', isItalic: false, isBold: false, isParagraphEnd: true },
+    ]
+    const result = parseRichText(segments)
+    // First paragraph: opens quote, never closes — depth 1 throughout.
+    expect(result[0]).toMatchObject({ text: '"Hello',    quoteDepth: 1, inQuotes: true })
+    expect(result[1]).toMatchObject({ text: 'there.',    quoteDepth: 1, inQuotes: true })
+    // Second paragraph: stack was reset, so plain narration is depth 0.
+    expect(result[2]).toMatchObject({ text: 'A',         quoteDepth: 0, inQuotes: false })
+    expect(result[result.length - 1]).toMatchObject({ quoteDepth: 0, inQuotes: false })
+  })
+
+  it('should not grow stack past MAX_QUOTE_DEPTH even with pathological input', () => {
+    // Many open `"` in a row should still cap at depth 3, never blow up.
+    const segments = [
+      { text: '"a "b "c "d "e "f "g', isItalic: false, isBold: false, isParagraphEnd: true },
+    ]
+    const result = parseRichText(segments)
+    const maxSeen = Math.max(...result.map(w => w.quoteDepth))
+    expect(maxSeen).toBeLessThanOrEqual(3)
   })
 })
 

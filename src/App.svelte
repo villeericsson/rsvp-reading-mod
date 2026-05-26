@@ -621,8 +621,8 @@
             </svg>
           </button>
           <button
-            class="icon-btn"
-            on:click={() => (contextMode = !contextMode)}
+            class="icon-btn context-mode-btn"
+            on:click|preventDefault={() => { contextMode = !contextMode; }}
             title="Context Mode"
             class:active={contextMode}
           >
@@ -961,6 +961,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    outline: none;
+    -webkit-appearance: none;
+  }
+
+  .icon-btn:focus {
+    outline: none;
+  }
+
+  .icon-btn:focus-visible {
+    outline: none;
   }
 
   .icon-btn:hover {

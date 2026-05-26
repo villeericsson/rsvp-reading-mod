@@ -461,6 +461,10 @@
     .word-container.multi-mode {
       font-size: calc(clamp(0.9rem, 3.5vw, 2rem) * var(--text-size-multiplier, 1));
     }
+
+    .context-display {
+      font-size: calc(clamp(1.8rem, 5vw, 3.6rem) * var(--text-size-multiplier, 1));
+    }
   }
 
   @media (max-width: 400px) {

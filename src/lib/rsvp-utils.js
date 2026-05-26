@@ -34,7 +34,10 @@ export function parseText(text) {
     const trimmed = paragraph.trim();
     if (!trimmed) continue;
 
-    maybeCarryQuoteAcrossParagraph(quoteState, trimmed);
+    // Reset stack at every paragraph boundary. We do NOT carry quote state
+    // across paragraphs: a classifier misfire can otherwise compound across
+    // chapters and progressively highlight everything.
+    quoteState.stack = [];
 
     const tokens = tokenizeParagraph(trimmed);
     for (let i = 0; i < tokens.length; i++) {
@@ -176,10 +179,10 @@ function processWordQuoteEvents(tok, quoteState) {
     }
 
     if (kind === 'dOpen') {
-      quoteState.stack.push('double');
+      if (quoteState.stack.length < MAX_QUOTE_DEPTH) quoteState.stack.push('double');
       maxDepth = Math.max(maxDepth, quoteState.stack.length);
     } else if (kind === 'sOpen') {
-      quoteState.stack.push('single');
+      if (quoteState.stack.length < MAX_QUOTE_DEPTH) quoteState.stack.push('single');
       maxDepth = Math.max(maxDepth, quoteState.stack.length);
     } else if (kind === 'dClose') {
       const top = quoteState.stack[quoteState.stack.length - 1];
@@ -196,32 +199,12 @@ function processWordQuoteEvents(tok, quoteState) {
 }
 
 /**
- * Before processing a new paragraph, decide whether to carry the open quote
- * stack from the previous paragraph into this one.
- *
- * Rule: carry only if the new paragraph's first non-space char matches the
- * type currently on top of the stack. (English convention: a continuing
- * multi-paragraph speech repeats the opening mark at each paragraph start.)
- * Otherwise force-close everything to prevent runaway highlighting.
+ * Maximum quote nesting depth tracked. Defense-in-depth: even if a classifier
+ * misfire pushes when it shouldn't, the stack can't grow past this and the
+ * runaway "everything highlighted, then lighter, then lighter" failure mode
+ * is bounded. Legitimate prose almost never nests quotes more than 2 deep.
  */
-function maybeCarryQuoteAcrossParagraph(quoteState, trimmedParagraph) {
-  if (quoteState.stack.length === 0) return;
-  const first = trimmedParagraph[0];
-  const top = quoteState.stack[quoteState.stack.length - 1];
-  const matches =
-    (top === 'double' && (first === '"' || first === '“')) ||
-    (top === 'single' && (first === "'" || first === '‘'));
-  if (matches) {
-    // The leading mark is a continuation marker (English convention for
-    // multi-paragraph speech). Pop now — the classifier will see it as an
-    // open and re-push it, leaving the depth unchanged.
-    quoteState.stack.pop();
-  } else {
-    // No continuation signal — clear the stack so an orphan/unclosed quote
-    // doesn't cascade into unrelated narration.
-    quoteState.stack = [];
-  }
-}
+const MAX_QUOTE_DEPTH = 3;
 
 /**
  * Process a single raw word for quote tracking using the shared classifier.
@@ -250,10 +233,10 @@ function trackQuotesForWord(rawWord, quoteState) {
     }
 
     if (kind === 'dOpen') {
-      quoteState.stack.push('double');
+      if (quoteState.stack.length < MAX_QUOTE_DEPTH) quoteState.stack.push('double');
       maxDepth = Math.max(maxDepth, quoteState.stack.length);
     } else if (kind === 'sOpen') {
-      quoteState.stack.push('single');
+      if (quoteState.stack.length < MAX_QUOTE_DEPTH) quoteState.stack.push('single');
       maxDepth = Math.max(maxDepth, quoteState.stack.length);
     } else if (kind === 'dClose') {
       if (quoteState.stack[quoteState.stack.length - 1] === 'double') quoteState.stack.pop();
@@ -295,6 +278,11 @@ export function parseRichText(segments) {
         isParagraphEnd: isLastOfSegment && !!seg.isParagraphEnd,
       });
     }
+    // Reset the quote stack at paragraph boundaries. Without this an
+    // unclosed quote (or a single rare classifier misfire) would persist
+    // through the rest of the chapter and progressively highlight every
+    // word — eventually pushing nesting depth to 2, 3, ...
+    if (seg.isParagraphEnd) quoteState.stack = [];
   }
 
   return words;

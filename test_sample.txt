@@ -1,0 +1,6 @@
+This is a test of the RSVP reader. It features "dialogue" and incrediblylongwordsthatmightcauseclipping on small screens. Let's see how it handles this text.
+
+"What do you think about this?" she asked.
+"I think it's fantastic," he replied.
+
+Here is another paragraph. It is very short.
