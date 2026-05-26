@@ -3,27 +3,27 @@
   import { FONTS, DEFAULT_FONT_ID } from '../fonts.js';
 
   export let wordsPerMinute = 300;
-  export let fadeEnabled = true;
+  export let fadeEnabled = false;
   export let fadeDuration = 150;
   export let pauseOnPunctuation = true;
-  export let punctuationPauseMultiplier = 2;
+  export let punctuationPauseMultiplier = 1.5;
   export let pauseOnCompoundWords = true;
   export let compoundWordMultiplier = 2;
-  export let numberPauseMultiplier = 2;
+  export let numberPauseMultiplier = 3;
   export let digitLengthPenalty = 10;
-  export let paragraphEndMultiplier = 3;
-  export let paragraphEndVisual = 'blank';
+  export let paragraphEndMultiplier = 2.5;
+  export let paragraphEndVisual = 'pilcrow';
   export let pauseAfterWords = 0;
   export let pauseDuration = 500;
   export let frameWordCount = 1;
-  export let wordLengthWPMMultiplier = 5;
+  export let wordLengthWPMMultiplier = 20;
   export let highlightDialogue = true;
-  export let textSize = 100;
-  export let orpOffsetX = 0;
-  export let orpOffsetY = 0;
+  export let textSize = 75;
+  export let orpOffsetX = -20;
+  export let orpOffsetY = -20;
   export let fontFamily = DEFAULT_FONT_ID;
-  export let postPauseSmoothingEnabled = false;
-  export let smoothingThreshold = 5;
+  export let postPauseSmoothingEnabled = true;
+  export let smoothingThreshold = 2;
 
   const dispatch = createEventDispatcher();
 

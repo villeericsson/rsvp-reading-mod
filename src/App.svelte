@@ -78,25 +78,25 @@
 
   // Settings
   let wordsPerMinute = savedSettings.wordsPerMinute ?? 300;
-  let fadeEnabled = savedSettings.fadeEnabled ?? true;
+  let fadeEnabled = savedSettings.fadeEnabled ?? false;
   let fadeDuration = savedSettings.fadeDuration ?? 150;
   let pauseAfterWords = savedSettings.pauseAfterWords ?? 0;
   let pauseDuration = savedSettings.pauseDuration ?? 500;
   let pauseOnPunctuation = savedSettings.pauseOnPunctuation ?? true;
-  let punctuationPauseMultiplier = savedSettings.punctuationPauseMultiplier ?? 2;
-  let wordLengthWPMMultiplier = savedSettings.wordLengthWPMMultiplier ?? 5;
+  let punctuationPauseMultiplier = savedSettings.punctuationPauseMultiplier ?? 1.5;
+  let wordLengthWPMMultiplier = savedSettings.wordLengthWPMMultiplier ?? 20;
   let pauseOnCompoundWords = savedSettings.pauseOnCompoundWords ?? true;
   let compoundWordMultiplier = savedSettings.compoundWordMultiplier ?? 2;
-  let numberPauseMultiplier = savedSettings.numberPauseMultiplier ?? 2;
+  let numberPauseMultiplier = savedSettings.numberPauseMultiplier ?? 3;
   let digitLengthPenalty = savedSettings.digitLengthPenalty ?? 10;
-  let paragraphEndMultiplier = savedSettings.paragraphEndMultiplier ?? 3;
-  let paragraphEndVisual = savedSettings.paragraphEndVisual ?? 'blank';
-  let postPauseSmoothingEnabled = savedSettings.postPauseSmoothingEnabled ?? false;
-  let smoothingThreshold = savedSettings.smoothingThreshold ?? 5;
+  let paragraphEndMultiplier = savedSettings.paragraphEndMultiplier ?? 2.5;
+  let paragraphEndVisual = savedSettings.paragraphEndVisual ?? 'pilcrow';
+  let postPauseSmoothingEnabled = savedSettings.postPauseSmoothingEnabled ?? true;
+  let smoothingThreshold = savedSettings.smoothingThreshold ?? 2;
   let highlightDialogue = savedSettings.highlightDialogue ?? true;
-  let textSize = savedSettings.textSize ?? 100;
-  let orpOffsetX = savedSettings.orpOffsetX ?? 0;
-  let orpOffsetY = savedSettings.orpOffsetY ?? 0;
+  let textSize = savedSettings.textSize ?? 75;
+  let orpOffsetX = savedSettings.orpOffsetX ?? -20;
+  let orpOffsetY = savedSettings.orpOffsetY ?? -20;
   let fontFamily = savedSettings.fontFamily ?? DEFAULT_FONT_ID;
 
   // Animation
