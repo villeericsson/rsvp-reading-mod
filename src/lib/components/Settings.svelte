@@ -25,6 +25,7 @@
   export let postPauseSmoothingEnabled = true;
   export let smoothingThreshold = 2;
   export let smoothingStrength = 0.5;
+  export let maxPauseDuration = 800;
 
   const dispatch = createEventDispatcher();
 
@@ -358,6 +359,15 @@
         <input type="range" min="0" max="1" step="0.05" bind:value={smoothingStrength} class="slider slider-sm">
       </div>
     {/if}
+
+    <div class="control-row">
+      <div class="control-header">
+        <span>Max pause length</span>
+        <span class="control-value">{maxPauseDuration} ms · ≈{Math.round(60000 / maxPauseDuration)} wpm</span>
+      </div>
+      <input type="range" min="300" max="2500" step="50" bind:value={maxPauseDuration} class="slider">
+      <p class="hint-text">Caps any single word's display time. The WPM shown is how slow the slowest moment will feel.</p>
+    </div>
   </section>
 </div>
 

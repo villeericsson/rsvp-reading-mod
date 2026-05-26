@@ -94,6 +94,7 @@
   let postPauseSmoothingEnabled = savedSettings.postPauseSmoothingEnabled ?? true;
   let smoothingThreshold = savedSettings.smoothingThreshold ?? 2;
   let smoothingStrength = savedSettings.smoothingStrength ?? 0.5;
+  let maxPauseDuration = savedSettings.maxPauseDuration ?? 800;
   let highlightDialogue = savedSettings.highlightDialogue ?? true;
   let textSize = savedSettings.textSize ?? 75;
   let orpOffsetX = savedSettings.orpOffsetX ?? -20;
@@ -179,6 +180,7 @@
       postPauseSmoothingEnabled,
       smoothingThreshold,
       smoothingStrength,
+      maxPauseDuration,
       highlightDialogue,
       textSize,
       frameWordCount,
@@ -285,6 +287,7 @@
       }, baseDelay);
     }
 
+    if (finalDelay > maxPauseDuration) finalDelay = maxPauseDuration;
     intervalId = setTimeout(showNextWord, finalDelay);
   }
 
@@ -708,6 +711,7 @@
         bind:postPauseSmoothingEnabled
         bind:smoothingThreshold
         bind:smoothingStrength
+        bind:maxPauseDuration
         bind:pauseAfterWords
         bind:pauseDuration
         bind:frameWordCount

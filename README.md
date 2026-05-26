@@ -39,7 +39,7 @@ The app uses **Optimal Recognition Point (ORP)** highlighting - the red letter i
 - **Paragraph End Pauses**: Pause at the end of paragraphs (with configurable style and timing).
 - **Max-Wins Pause Stacking**: Employs a deterministic stacking strategy where only the strongest applicable pause multiplier is applied to a word.
 - **Post-Pause Speed Smoothing**: Gradually ramps the RSVP speed back up to normal *after* a prolonged pause.
-
+- **Max Pause**: Set a maximum pause duration to prevent extremely long pauses.
 
 ## BELOW IS ORIGINAL VERSION'S README:
 
