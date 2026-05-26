@@ -24,6 +24,7 @@
   export let fontFamily = DEFAULT_FONT_ID;
   export let postPauseSmoothingEnabled = true;
   export let smoothingThreshold = 2;
+  export let smoothingStrength = 0.5;
 
   const dispatch = createEventDispatcher();
 
@@ -345,9 +346,16 @@
       <div class="sub-control">
         <div class="control-header">
           <span>Smoothing decay</span>
-          <span class="control-value">{smoothingThreshold} words</span>
+          <span class="control-value">{smoothingThreshold} {smoothingThreshold === 1 ? 'word' : 'words'}</span>
         </div>
-        <input type="range" min="2" max="15" step="1" bind:value={smoothingThreshold} class="slider slider-sm">
+        <input type="range" min="1" max="15" step="1" bind:value={smoothingThreshold} class="slider slider-sm">
+      </div>
+      <div class="sub-control">
+        <div class="control-header">
+          <span>Smoothing strength</span>
+          <span class="control-value">{Math.round(smoothingStrength * 100)}%</span>
+        </div>
+        <input type="range" min="0" max="1" step="0.05" bind:value={smoothingStrength} class="slider slider-sm">
       </div>
     {/if}
   </section>

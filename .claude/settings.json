@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx svelte-check *)",
+      "Bash(grep -A1 \"App\\\\\\\\.svelte:9[3-7]\")",
+      "Bash(grep -A2 \"Settings\\\\\\\\.svelte\")"
+    ]
+  }
+}

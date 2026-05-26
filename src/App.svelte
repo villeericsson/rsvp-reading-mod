@@ -93,6 +93,7 @@
   let paragraphEndVisual = savedSettings.paragraphEndVisual ?? 'pilcrow';
   let postPauseSmoothingEnabled = savedSettings.postPauseSmoothingEnabled ?? true;
   let smoothingThreshold = savedSettings.smoothingThreshold ?? 2;
+  let smoothingStrength = savedSettings.smoothingStrength ?? 0.5;
   let highlightDialogue = savedSettings.highlightDialogue ?? true;
   let textSize = savedSettings.textSize ?? 75;
   let orpOffsetX = savedSettings.orpOffsetX ?? -20;
@@ -177,6 +178,7 @@
       paragraphEndVisual,
       postPauseSmoothingEnabled,
       smoothingThreshold,
+      smoothingStrength,
       highlightDialogue,
       textSize,
       frameWordCount,
@@ -262,7 +264,7 @@
       let decayFactor = 1;
       if (decayWordsRemaining > 0) {
         const t = (smoothingThreshold - decayWordsRemaining) / smoothingThreshold;
-        decayFactor = 1 + (decayStartMultiplier - 1) * (1 - t);
+        decayFactor = 1 + (decayStartMultiplier - 1) * smoothingStrength * (1 - t);
       }
       if (rawMultiplier > decayFactor) {
         finalDelay = rawDelay;
@@ -705,6 +707,7 @@
         bind:paragraphEndVisual
         bind:postPauseSmoothingEnabled
         bind:smoothingThreshold
+        bind:smoothingStrength
         bind:pauseAfterWords
         bind:pauseDuration
         bind:frameWordCount
